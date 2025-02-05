@@ -50,9 +50,9 @@ class Compose(Augmentation):
     
 # If also features want to be used
 class FeatAugmentation(Augmentation):
-    def __init__(self, pf: float):
+    def __init__(self, prob_feat: float):
         super(FeatAugmentation, self).__init__()
-        self.pf = pf
+        self.prob_feat = prob_feat
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
         x, edge_index, _ = g.unfold()
