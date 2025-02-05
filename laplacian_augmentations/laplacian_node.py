@@ -21,8 +21,8 @@ class Graph(NamedTuple):
     def unfold(self) -> Tuple[torch.FloatTensor, torch.LongTensor, Optional[SparseTensor]]:
         return self.x, self.edge_index, self.ptb_prob
 
-class Augmentor(ABC):
-    """Base class for graph augmentors."""
+class Augmentation(ABC):
+    """Standard class for augmentation."""
     def __init__(self):
         pass
     @abstractmethod
@@ -38,8 +38,7 @@ class Augmentor(ABC):
         return self.augment(Graph(x, edge_index, ptb_prob), batch).unfold()
       
 ###################### Laplacian Max-Min Augmentation Module - LaplaceGNN Class ######################
- 
-class Compose(Augmentor):
+class Compose(Augmentation):
   def __init__(self, augmentors: List[Augmentor]):
         super(Compose, self).__init__()
         self.augmentors = augmentors
@@ -50,9 +49,9 @@ class Compose(Augmentor):
         return g
     
 # If also features want to be used
-class FeatureAugmentor(Augmentor):
+class FeatAugmentation(Augmentation):
     def __init__(self, pf: float):
-        super(FeatureAugmentor, self).__init__()
+        super(FeatAugmentation, self).__init__()
         self.pf = pf
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
@@ -63,7 +62,7 @@ class FeatureAugmentor(Augmentor):
     def get_aug_name(self):
         return 'feature'
     
-class LaplaceGNN_Augmentation_Node(Augmentor):
+class LaplaceGNN_Augmentation_Node(Augmentation):
     def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, threshold=0.5, precomputed_centrality=None, sample='no'):
         """
         Centrality-guided Laplacian Spectral Augmentor.
