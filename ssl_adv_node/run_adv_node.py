@@ -172,8 +172,8 @@ def main(argv):
     
     # # data = modify_graph_v2_dc(dataset, percentage=2)
     print(f'Dataset used: {FLAGS.dataset}')
-    aug1 = Compose([L1_view]) #, FeatureAugmentor(pf=args.pf)]) --> to add standard feat augmentations as well
-    aug2 = Compose([L2_view]) #, FeatureAugmentor(pf=args.pf)]) --> to add standard feat augmentations as well
+    aug1 = Compose([L1_view]) #, FeatAugmentation(prob_feat=args.prob_feat)]) --> to add standard feat augmentations as well
+    aug2 = Compose([L2_view]) #, FeatAugmentation(prob_feat=args.prob_feat)]) --> to add standard feat augmentations as well
 
     # prepare transforms
     transform_1 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_1, drop_feat_p=FLAGS.drop_feat_p_1)
