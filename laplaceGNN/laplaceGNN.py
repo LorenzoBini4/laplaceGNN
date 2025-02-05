@@ -6,8 +6,8 @@ import torch_geometric.nn as pyg_nn
 class LaplaceGNN(torch.nn.Module):
     r""" LaplaceGNN: LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
     Args:
-        encoder1 (torch.nn.Module): First encoder network for augmentations.
-        encoder2 (torch.nn.Module): Second encoder network for augmentations.
+        encoder1 (torch.nn.Module): First encoder network for augmentations (from module.py).
+        encoder2 (torch.nn.Module): Second encoder network for augmentations (from module.py).
         augmentor (tuple): Tuple containing two augmentation functions.
         hidden_dim (int): Dimensionality of the hidden representation.
         predictor (torch.nn.Module): Predictor network used to predict the target projection from the online projection.
