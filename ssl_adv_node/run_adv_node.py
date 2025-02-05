@@ -387,7 +387,7 @@ def main(argv):
             'macro_f1_val': 0
         }
         for decay in [0.0, 0.001, 0.005, 0.01, 0.1]:
-            result = LREvaluator(weight_decay=decay)(z, data.y, split)
+            result = LaplacianLogRegr(weight_decay=decay)(z, data.y, split)
             if result['accuracy_val'] > best_result['accuracy_val']:
                 best_result = result
         return best_result
