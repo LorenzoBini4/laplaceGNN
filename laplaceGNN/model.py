@@ -49,7 +49,7 @@ class GCN(nn.Module):
                 m.lin.weight.data = weight
 
 ########################### No Laplace-module only Adversarial Training #######################################
-class Adversarial_GCN(nn.Module):
+class Encoder_Adversarial_GCN(nn.Module):
     def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False):
         super().__init__()
 
@@ -128,7 +128,7 @@ class Adversarial_GCN(nn.Module):
                 weight = (weight - mean) / (torch.sqrt(var + 1e-5))
                 m.lin.weight.data = weight
 
-class Adversarial_GraphSAGE(nn.Module):
+class Encoder_Adversarial_GraphSAGE(nn.Module):
     def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False):
         super().__init__()
 
@@ -204,7 +204,7 @@ class Adversarial_GraphSAGE(nn.Module):
                     weight = (weight - mean) / (torch.sqrt(var + 1e-5))
                     m.lin_r.weight.data = weight
 
-class Adversarial_GAT(nn.Module):
+class Encoder_Adversarial_GAT(nn.Module):
     def __init__(self, layer_sizes, num_heads=4, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False):
         super().__init__()
 
@@ -276,7 +276,7 @@ class Adversarial_GAT(nn.Module):
                     m.att_dst.data = weight
 
 ########################### LAPLACEGNN - Complete Module #######################################
-class LaplaceGNN_GCN(nn.Module):
+class Encoder_LaplaceGNN_GCN(nn.Module):
     def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False):
         super().__init__()
 
@@ -348,7 +348,7 @@ class LaplaceGNN_GCN(nn.Module):
                 m.lin.weight.data = weight
 
 ########################### FOR PPI ########################################
-class LaplaceGNN_PPISAGE(nn.Module):
+class Encoder_LaplaceGNN_PPISAGE(nn.Module):
     def __init__(self, input_size, hidden_size, embedding_size):
         super().__init__()
 
@@ -415,7 +415,7 @@ class LaplaceGNN_PPISAGE(nn.Module):
             m.reset_parameters()
 
 ############################################## ZINC ##############################################
-class LaplaceGNN_ZINCSAGE(nn.Module):
+class Encoder_LaplaceGNN_ZINCSAGE(nn.Module):
     def __init__(self, hidden_size, embedding_size):
         super().__init__()
 
