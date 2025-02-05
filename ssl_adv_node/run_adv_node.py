@@ -18,7 +18,7 @@ from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
 from ../laplaceGNN.utils import set_random_seeds
 from ../laplaceGNN.data import get_dataset, get_ogbn_arxiv, get_wiki_cs, get_citeseer,   get_cora, get_pubmed, get_ogbn_papers100M
-from ../laplaceGNN.logistic_regression_eval import fit_logistic_regression_ogbn_arxiv_liblinear, fit_logistic_regression_ogbn_arxiv_adam, fit_logistic_regression_ogbn_paper100M_liblinear
+from ../laplaceGNN.log_regr_eval import log_regr_ogbn_arxiv_liblinear, log_regr_ogbn_arxiv_adam, log_regr_ogbn_paper100M_liblinear
 from geomloss import SamplesLoss
 from ../laplacian_augmentations.label_guide_ssl import *
 from ../laplacian_augmentations.laplacian_node import *
@@ -348,27 +348,27 @@ def main(argv):
         representations, labels = compute_representations(tmp_encoder, dataset, device)
 
         if FLAGS.dataset in ['coauthor-cs', 'amazon-computers', 'amazon-photos', 'coauthor-physics']:
-            scores = fit_logistic_regression(representations.cpu().numpy(), labels.cpu().numpy(), data_random_seed=FLAGS.data_seed, repeat=FLAGS.num_eval_splits)
+            scores = log_regr(representations.cpu().numpy(), labels.cpu().numpy(), data_random_seed=FLAGS.data_seed, repeat=FLAGS.num_eval_splits)
             for i, score in enumerate(scores):
                 print(f'Epoch: {epoch}, Split: {i}, Accuracy: {score}')
                 # best_accuracy = max(best_accuracy, score)  
 
         elif FLAGS.dataset in ['wiki-cs', 'cora', 'citeseer', 'pubmed']:
-            print("Using fit_logistic_regression_liblinear")
-            scores = fit_logistic_regression_preset_splits(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            print("Using log_regr_liblinear")
+            scores = log_regr_preset_splits(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
             for i, score in enumerate(scores):
                 print(f'Epoch: {epoch}, Split: {i}, Accuracy: {score}')
                 # best_accuracy = max(best_accuracy, score)  
                 # print(f'Best Accuracy Obtained: {best_accuracy}')
         elif FLAGS.dataset == 'ogbn-arxiv':
-            print("Using fit_logistic_regression_ogbn_arxiv_adam")
-            scores = fit_logistic_regression_ogbn_arxiv_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
-            # score = fit_logistic_regression_ogbn_arxiv_adam(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            print("Using log_regr_ogbn_arxiv_adam")
+            scores = log_regr_ogbn_arxiv_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            # score = log_regr_ogbn_arxiv_adam(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
             # print(f'Epoch: {epoch}, Accuracy: {score}')
             # best_accuracy = max(best_accuracy, score)  
         else:
-            print("Using fit_logistic_regression_liblinear")
-            scores = fit_logistic_regression_ogbn_paper100M_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            print("Using log_regr_liblinear")
+            scores = log_regr_ogbn_paper100M_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
             for i, score in enumerate(scores):
                 print(f'Epoch: {epoch}, Split: {i}, Accuracy: {score}')
                 # best_accuracy = max(best_accuracy, score)  
