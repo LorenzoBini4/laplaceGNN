@@ -17,7 +17,7 @@ from ../laplaceGNN.laplaceGNN import *
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
 from ../laplaceGNN.utils import set_random_seeds
-from ../laplaceGNNb.data import get_dataset, get_ogbn_arxiv, get_wiki_cs, get_citeseer,   get_cora, get_pubmed, get_ogbn_papers100M
+from ../laplaceGNN.data import get_dataset, get_ogbn_arxiv, get_wiki_cs, get_citeseer,   get_cora, get_pubmed, get_ogbn_papers100M
 from ../laplaceGNN.logistic_regression_eval import fit_logistic_regression_ogbn_arxiv_liblinear, fit_logistic_regression_ogbn_arxiv_adam, fit_logistic_regression_ogbn_paper100M_liblinear
 from geomloss import SamplesLoss
 from ../laplacian_augmentations.label_guide_ssl import *
