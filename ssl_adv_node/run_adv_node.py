@@ -7,7 +7,6 @@ from absl import flags
 import torch
 from torch.nn.functional import cosine_similarity
 from torch.optim import AdamW
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from torch_geometric.nn import GCNConv
