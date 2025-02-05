@@ -88,7 +88,6 @@ class LaplacianLogRegr(Evaluation):
         optimizer = Adam(classifier.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         output_fn = nn.LogSoftmax(dim=-1)
         criterion = nn.NLLLoss()
-        
         best_val_acc = 0
         best_val_micro = 0
         best_val_macro = 0
@@ -119,7 +118,6 @@ class LaplacianLogRegr(Evaluation):
                     val_acc = accuracy_score(y_val, y_pred)
                     val_micro = f1_score(y_val, y_pred, average='micro')
                     val_macro = f1_score(y_val, y_pred, average='macro')
-
                     if val_acc > best_val_acc:
                         best_val_acc = val_acc
                         best_val_micro = val_micro
@@ -128,7 +126,6 @@ class LaplacianLogRegr(Evaluation):
                         best_test_micro = test_micro
                         best_test_macro = test_macro
                         best_epoch = epoch
-
                     pbar.set_postfix({'Test accuracy': best_test_acc, 
                                       'F1Mi': best_test_micro, 
                                       'F1Ma': best_test_macro})
@@ -142,4 +139,3 @@ class LaplacianLogRegr(Evaluation):
             'micro_f1_val': best_val_micro,
             'macro_f1_val': best_val_macro
         }
-
