@@ -9,6 +9,7 @@ from sklearn.model_selection import PredefinedSplit, GridSearchCV
 from sklearn.svm import LinearSVC, SVC
 from tqdm import tqdm
 
+###################### Standard Protocol for Data Evaluation Split ######################
 def get_split(num_samples: int, train_ratio: float = 0.1, test_ratio: float = 0.8):
     torch.manual_seed(15)
     torch.cuda.manual_seed(15)
