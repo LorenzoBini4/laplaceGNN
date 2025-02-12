@@ -14,10 +14,10 @@ import sys
 ### importing OGB
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 sys.path.insert(0, '../..')
-from ../../LaplaceGNN4Graph import LaplaceGNN_Graph
-from ../../model_ogb import GNN
-from ../../transforms import *
-from ../../augmentor_graph import *
+from LaplaceGNN4Graph import LaplaceGNN_Graph
+from model_ogb import GNN
+from transforms import *
+from augmentor_graph import *
 
 parser = argparse.ArgumentParser(description='GNN baselines on ogbg data with PyG')
 parser.add_argument('--gnn', type=str, default='gcn',
