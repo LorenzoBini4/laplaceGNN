@@ -12,7 +12,7 @@ from torch_geometric.datasets import TUDataset
 from ../../laplaceGNN/utils import set_random_seeds
 from laplacian_eval_graph import get_split, LaplacianLogRegr
 from ../augmentor_graph import CentralitySpectralAugmentor_Graph
-from laplaceGNN4Graph import *
+from laplaceGNN4Graph import LaplaceGNN_Graph
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
 from scheduler import CosineDecayScheduler
