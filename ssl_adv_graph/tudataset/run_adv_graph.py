@@ -203,13 +203,13 @@ def main():
     else:  
         print('Laplacian perturbations under computation')
         assert dataset.len() > 1  # it's a graph classification
-        laoded_laplacian_path = []
+        loaded_laplacian_path = []
         for i in tqdm(range(dataset.len())):
             data = dataset.get(i)        
             L1_view.calc_prob(data, silence=True) # now max-laplacian has been encoded as data['max']=ptb_prob1
             L2_view.calc_prob(data, silence=True) # now min-laplacian has been encoded as data['min']=ptb_prob2
-            update_data_ls.append(data)
-        torch.save(laoded_laplacian_path, laplacian_path)
+            loaded_laplacian_path.append(data)
+        torch.save(loaded_laplacian_path, laplacian_path)
     
     # LaplaceGNN main loop
     dataloader = DataLoader(update_data_ls, batch_size=32, shuffle=True)  
