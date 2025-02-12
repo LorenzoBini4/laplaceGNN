@@ -11,7 +11,6 @@ from torch_geometric.utils.sparse import to_edge_index
 from torch_geometric.utils import unbatch, unbatch_edge_index
 from torch_geometric.data import Batch, Data
 from utils import get_adj_tensor, preprocess_adj, get_normalize_adj_tensor, to_dense_adj, dense_to_sparse, switch_edge, drop_feature
-
 ###################### Standard Class ######################
 class Graph(NamedTuple):
     x: torch.FloatTensor
