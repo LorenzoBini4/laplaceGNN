@@ -66,7 +66,6 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
     def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, threshold=0.5, precomputed_centrality=None, sample='no'):
         """
         Centrality-guided Laplacian Spectral Augmentor.
-        
         Args:
             ratio (float): Ratio of edges to perturb.
             lr (float): Learning rate for gradient updates.
@@ -93,10 +92,8 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
     def compute_centrality(self, adj):
         """
         Compute multiple centrality metrics and combine them.
-        
         Args:
             adj (torch.Tensor): Adjacency matrix.
-        
         Returns:
             torch.Tensor: Combined centrality scores normalized to [0, 1].
         """
@@ -129,24 +126,20 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
     def calc_prob(self, data, fast=True, silence=False, precomputed_centrality=None):
         """
         Precompute the perturbation probabilities with centrality-guided initialization using Power Iteration.
-        
         Args:
             data (torch_geometric.data.Data): Graph data object.
             fast (bool): Whether to use a fast approximation for eigenvalue computation.
             silence (bool): Whether to suppress progress output.
             precomputed_centrality (dict, optional): Precomputed centrality measures.
-        
         Returns:
             torch_geometric.data.Data: Updated graph data object with perturbation probabilities.
         """
         def power_iteration(matrix, num_iters=10):
             """
             Approximate the largest eigenvalue using Power Iteration without in-place operations.
-            
             Args:
                 matrix (torch.Tensor): Input symmetric matrix.
                 num_iters (int): Number of iterations for Power Iteration.
-            
             Returns:
                 float: Approximated largest eigenvalue.
             """
@@ -187,10 +180,8 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
         nnodes = ori_adj.shape[0]
         tril_indices = torch.tril_indices(nnodes, nnodes, offset=-1)
         adj_changes = Parameter(combined_centrality[tril_indices[0]] * combined_centrality[tril_indices[1]], requires_grad=True).to(self.device)
-
         # Compute normalized adjacency matrix
         ori_adj_norm = get_normalize_adj_tensor(ori_adj, device=self.device)
-
         # Use SVD for spectral analysis
         if fast:
             print('Using fast SVD for spectral analysis')
@@ -247,23 +238,18 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
         """
         Apply the augmentation to the graph.
-        
         Args:
             g (Graph): Input graph.
             batch (torch.Tensor): Batch information (if any).
-        
         Returns:
             Graph: Augmented graph.
         """
         x, edge_index, ptb_prob = g.unfold()
-
         ori_adj = to_dense_adj(edge_index, batch)
         ptb_idx, ptb_w = to_edge_index(ptb_prob)
         ptb_m = to_dense_adj(ptb_idx, batch, ptb_w)
-
         ptb_adj = self.random_sample(ptb_m)
         modified_adj = self.get_modified_adj(ori_adj, ptb_adj).detach()
-
         if batch is None:
             edge_index, _ = dense_to_sparse(modified_adj)
         else:
@@ -316,10 +302,8 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
     def random_sample(self, edge_prop):
         """
         Randomly sample perturbations from the edge probability matrix.
-        
         Args:
             edge_prop (torch.Tensor): Edge probability matrix.
-        
         Returns:
             torch.FloatTensor: Binary sampled perturbation matrix.
         """
