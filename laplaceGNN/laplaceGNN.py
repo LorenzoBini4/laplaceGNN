@@ -153,13 +153,13 @@ class LaplaceGNN_v2(torch.nn.Module):
         Encoder must have a `reset_parameters` method, as the weights of the target network will
         be initialized differently from the online network.
     """
-    def __init__(self, encoder, predictor, augmentor):
+    def __init__(self, encoder, predictor, augmentation):
         super().__init__()
 
         # Encoders and augmentor
         self.online_encoder = encoder
         self.predictor = predictor
-        self.augmentor = augmentor
+        self.augmentation = augmentation
 
         # Target networks
         self.target_encoder = copy.deepcopy(encoder)
@@ -180,7 +180,6 @@ class LaplaceGNN_v2(torch.nn.Module):
     @torch.no_grad()
     def update_target_network(self, mm, centering=True, sharpening=True, center_momentum=0.9, temperature=0.04):
         r"""Performs a momentum update of the target network's weights, with optional centering and sharpening.
-
         Args:
             mm (float): Momentum used in moving average update.
             centering (bool): Whether to apply centering to the target network outputs.
@@ -220,9 +219,9 @@ class LaplaceGNN_v2(torch.nn.Module):
         ptb_prob2 = data.min
 
         # Apply augmentations
-        aug1, aug2 = self.augmentor
-        x1, edge_index1, _ = aug1(x, edge_index, ptb_prob1, batch=None)
-        x2, edge_index2, _ = aug2(x, edge_index, ptb_prob2, batch=None)
+        L1, L2 = self.augmentation
+        x1, edge_index1, _ = L1(x, edge_index, ptb_prob1, batch=None)
+        x2, edge_index2, _ = L2(x, edge_index, ptb_prob2, batch=None)
 
         # Online encoder forward pass with perturbations
         # online_y = self.online_encoder(x1, edge_index1, perturb_first, perturb_last)
