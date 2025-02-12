@@ -10,7 +10,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
 
 from ../../laplaceGNN/utils import set_random_seeds
-from laplacian_eval_graph import get_split, LREvaluator_Graph
+from laplacian_eval_graph import get_split, LREvaluator_ADVGRAPH
 from ../augmentor_graph import CentralitySpectralAugmentor_Graph
 from LaplaceGNN4Graph import *
 from torch.optim import AdamW
