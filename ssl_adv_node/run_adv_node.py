@@ -171,8 +171,10 @@ def main(argv):
     
     # # data = modify_graph_v2_dc(dataset, percentage=2)
     print(f'Dataset used: {FLAGS.dataset}')
-    aug1 = Compose([L1_view]) #, FeatAugmentation(prob_feat=args.prob_feat)]) --> to add standard feat augmentations as well
-    aug2 = Compose([L2_view]) #, FeatAugmentation(prob_feat=args.prob_feat)]) --> to add standard feat augmentations as well
+  
+    # uncomment if wanna use LaplaceGNN_v2 later
+    # L1 = Compose([L1_view], FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
+    # L2 = Compose([L2_view], FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
 
     # prepare transforms
     transform_1 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_1, drop_feat_p=FLAGS.drop_feat_p_1)
@@ -187,10 +189,9 @@ def main(argv):
         encoder = Encoder_Adversarial_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=False, layernorm=True, weight_standardization=True)
     else:
         encoder = Encoder_Adversarial_GraphSAGE([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
-        # encoder = Encoder_LaplaceGNN_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
     predictor = MLP_Predictor(representation_size, representation_size, hidden_size=FLAGS.predictor_hidden_size)
     model = LaplaceGNN_v1(encoder, predictor).to(device)
-    # model = LaplaceGNN_v2(encoder, predictor, augmentor=(x1,x2)).to(device)
+    # model = LaplaceGNN_v2(encoder, predictor, augmentation=(L1,L2)).to(device)
     print(model.online_encoder.model)
     print(model.predictor)
 
