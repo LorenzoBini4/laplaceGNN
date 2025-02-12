@@ -39,13 +39,13 @@ class Augmentation(ABC):
       
 ###################### Laplacian Max-Min Augmentation Module - LaplaceGNN Class ######################
 class Compose(Augmentation):
-  def __init__(self, augmentors: List[Augmentation]):
+  def __init__(self, augmentations: List[Augmentation]):
         super(Compose, self).__init__()
-        self.augmentors = augmentors
+        self.augmentations = augmentations
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
-        for aug in self.augmentors:
-            g = aug.augment(g, batch)
+        for augment in self.augmentations:
+            g = augment.augmentations(g, batch)
         return g
     
 # If also features want to be used
