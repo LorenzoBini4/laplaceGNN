@@ -10,7 +10,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
 
 from ../../laplaceGNN/utils import set_random_seeds
-from laplacian_eval_graph import get_split, LREvaluator_ADVGRAPH
+from laplacian_eval_graph import get_split, LaplacianLogRegr
 from ../augmentor_graph import CentralitySpectralAugmentor_Graph
 from LaplaceGNN4Graph import *
 from torch.optim import AdamW
@@ -118,7 +118,7 @@ def test(encoder_model, dataloader, device):
         'macro_f1_val': 0
     }
     for decay in [0.0, 0.001, 0.01, 0.1, 0.5, 1.0, 5.0]:
-        result = LREvaluator_ADVGRAPH(weight_decay=decay)(x, y, split)
+        result = LaplacianLogRegr(weight_decay=decay)(x, y, split)
         if result['accuracy_val'] > best_result['accuracy_val']:
             best_result = result
     return best_result
