@@ -11,6 +11,7 @@ from torch_geometric.utils.sparse import to_edge_index
 from torch_geometric.utils import unbatch, unbatch_edge_index
 from torch_geometric.data import Batch, Data
 from utils import get_adj_tensor, preprocess_adj, get_normalize_adj_tensor, to_dense_adj, dense_to_sparse, switch_edge, drop_feature
+
 ###################### Standard Class ######################
 class Graph(NamedTuple):
     x: torch.FloatTensor
@@ -39,12 +40,12 @@ class Augmentation(ABC):
 
 ###################### Laplacian Max-Min Augmentation Module - LaplaceGNN Class ######################
 class Compose(Augmentation):
-    def __init__(self, augmentors: List[Augmentation]):
+    def __init__(self, augmentations: List[Augmentation]):
         super(Compose, self).__init__()
-        self.augmentors = augmentors
+        self.augmentations = augmentations
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
-        for aug in self.augmentors:
+        for aug in self.augmentations:
             g = aug.augment(g, batch)
         return g
 
