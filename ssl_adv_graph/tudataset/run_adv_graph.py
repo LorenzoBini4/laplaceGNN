@@ -9,7 +9,7 @@ from torch_geometric.nn import GCNConv, global_add_pool
 from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
 
-from ../../laplaceGNN/utils import set_random_seeds
+from ../../laplaceGNN.utils import set_random_seeds
 from laplacian_eval_graph import get_split, LaplacianLogRegr
 from ../augmentor_graph import CentralitySpectralAugmentor_Graph
 from laplaceGNN4Graph import LaplaceGNN_Graph
