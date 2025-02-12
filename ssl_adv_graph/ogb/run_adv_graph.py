@@ -341,10 +341,10 @@ def main():
         np.random.seed(seed)
         if args.gnn == 'gin':
             encoder = GNN(gnn_type='gin', num_tasks=dataset.num_tasks, num_layer=args.num_layer, emb_dim=args.emb_dim,
-                           drop_ratio=args.drop_ratio, virtual_node=False, feat_dim=feat_dim, perturb_position=args.pp).to(device)
+                           drop_ratio=args.drop_ratio, feat_dim=feat_dim, perturb_position=args.pp).to(device)
         elif args.gnn == 'gcn':
             encoder = GNN(gnn_type='gcn', num_tasks=dataset.num_tasks, num_layer=args.num_layer, emb_dim=args.emb_dim,
-                           drop_ratio=args.drop_ratio, virtual_node=False, feat_dim=feat_dim, perturb_position=args.pp).to(device)
+                           drop_ratio=args.drop_ratio, feat_dim=feat_dim, perturb_position=args.pp).to(device)
         else:
             raise ValueError('Invalid GNN-encoder type')
 
