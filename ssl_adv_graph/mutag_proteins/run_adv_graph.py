@@ -20,7 +20,6 @@ from torch.nn.functional import cosine_similarity
 from scheduler import CosineDecayScheduler
 import gc
 
-###################### Encoder Model ######################
 class GConv(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers):
         super(GConv, self).__init__()
@@ -65,7 +64,8 @@ class FC(nn.Module):
 
     def forward(self, x):
         return self.fc(x) + self.linear(x)
-###################### GNN Encoder ######################
+        
+###################### GNN Encoder (shared for teacher and student) ######################
 class GCNEncoder(nn.Module):
     def __init__(self, gconv1, gconv2):
         super(GCNEncoder, self).__init__()
