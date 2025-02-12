@@ -14,7 +14,7 @@ import sys
 ### importing OGB
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 sys.path.insert(0, '../..')
-from ../../LaplaceGNN4GRAPH import LaplaceGNN_Graph
+from ../../LaplaceGNN4Graph import LaplaceGNN_Graph
 from ../../model_ogb import GNN
 from ../../transforms import *
 from ../../augmentor_graph import *
