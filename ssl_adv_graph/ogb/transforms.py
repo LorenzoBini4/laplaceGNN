@@ -21,7 +21,6 @@ class DropEdges:
     r"""Drops edges with probability p, if chosen."""
     def __init__(self, p, force_undirected=False):
         assert 0. < p < 1., 'Dropout probability has to be between 0 and 1, but got %.2f' % p
-
         self.p = p
         self.force_undirected = force_undirected
 
@@ -29,7 +28,6 @@ class DropEdges:
         edge_index = data.edge_index
         edge_attr = data.edge_attr if 'edge_attr' in data else None
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.p, force_undirected=self.force_undirected)
-
         data.edge_index = edge_index
         if edge_attr is not None:
             data.edge_attr = edge_attr
@@ -37,7 +35,6 @@ class DropEdges:
 
     def __repr__(self):
         return '{}(p={}, force_undirected={})'.format(self.__class__.__name__, self.p, self.force_undirected)
-
 
 def get_graph_drop_transform(drop_edge_p, drop_feat_p):
     transforms = list()
