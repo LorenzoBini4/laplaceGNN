@@ -190,7 +190,7 @@ def main(argv):
         # encoder = Encoder_LaplaceGNN_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
     predictor = MLP_Predictor(representation_size, representation_size, hidden_size=FLAGS.predictor_hidden_size)
     model = LaplaceGNN_v1(encoder, predictor).to(device)
-    # model = LaplaceGNN_v2(encoder, predictor, augmentor=(aug1,aug2)).to(device)
+    # model = LaplaceGNN_v2(encoder, predictor, augmentor=(x1,x2)).to(device)
     print(model.online_encoder.model)
     print(model.predictor)
 
