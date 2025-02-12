@@ -60,7 +60,7 @@ class FeatAugmentation(Augmentation):
     def get_aug_name(self):
         return 'feature'
 
-class CentralitySpectralAugmentor_Graph(Augmentation):
+class CentralitySpectralAugmentation_Graph(Augmentation):
     def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, sample='no', threshold=0.5):
         """
         Centrality-guided Laplacian Spectral Augmentor.
@@ -75,7 +75,7 @@ class CentralitySpectralAugmentor_Graph(Augmentation):
             sample (str): Sampling mode ('yes' or 'no').
             threshold (float): Perturbation threshold for projection.
         """
-        super(CentralitySpectralAugmentor_Graph, self).__init__()
+        super(CentralitySpectralAugmentation_Graph, self).__init__()
         self.ratio = ratio
         self.lr = lr
         self.iteration = iteration
