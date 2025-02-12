@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from torch_geometric.nn import GCNConv
 #from ../laplaceGNN import *
-from ../laplaceGNN.model import *
+from ../laplaceGNN.models import *
 from ../laplaceGNN.laplaceGNN import *
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
