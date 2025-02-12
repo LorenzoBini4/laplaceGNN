@@ -11,7 +11,7 @@ from torch_geometric.datasets import TUDataset
 
 from ../../laplaceGNN.utils import set_random_seeds
 from laplacian_eval_graph import get_split, LaplacianLogRegr
-from ../augmentor_graph import CentralitySpectralAugmentor_Graph
+from ../augmentor_graph import CentralitySpectralAugmentation_Graph
 from laplaceGNN4Graph import LaplaceGNN_Graph
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
@@ -171,7 +171,7 @@ def main():
     #     'eigenvector': nx.eigenvector_centrality(to_networkx(data))
     # }
 
-    L1_view = CentralitySpectralAugmentor_Graph(
+    L1_view = CentralitySpectralAugmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_max_lr,
         iteration=args.lapl_epoch,
@@ -183,7 +183,7 @@ def main():
         sample='no'
     )
 
-    L2_view = CentralitySpectralAugmentor_Graph(
+    L2_view = CentralitySpectralAugmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
