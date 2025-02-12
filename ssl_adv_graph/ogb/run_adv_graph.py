@@ -83,7 +83,7 @@ class MLP(torch.nn.Module):
     def forward(self, x):
         return self.layers(x)
 
-def train_adv_bootstrap(model, device, loader, optimizer, task_type, args, lap1, lap2, feat_augmentor=None):
+def train_adv_bootstrap(model, device, loader, optimizer, task_type, args, lap1, lap2, feat_augmentation=None):
     total_loss = 0
     for batch in loader:
         batch = batch.to(device)
@@ -373,7 +373,7 @@ def main():
 
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         for epoch in tqdm(range(1, args.epochs+1)):
-            loss = train_adv_bootstrap(model, device, train_loader, optimizer, None, args, lap1, lap2, feat_augmentor=FeatureAugmentor(pf=args.prob_feat))
+            loss = train_adv_bootstrap(model, device, train_loader, optimizer, None, args, lap1, lap2, feat_augmentation=FeatAugmentation(pf=args.prob_feat))
             if epoch % args.test_freq == 0 or epoch == args.epochs:
                 linear_optimizer = torch.optim.Adam(logreg.parameters(), lr=3e-4)
                 result = evaluation(model, logreg, linear_optimizer, device, train_loader, val_loader, test_loader, evaluator, dataset.eval_metric)
