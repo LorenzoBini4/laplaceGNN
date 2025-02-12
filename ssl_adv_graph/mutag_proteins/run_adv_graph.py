@@ -196,7 +196,7 @@ def main():
     )
     
     # Precompute laplacian perturbation or load them
-    laplacian_path = osp.join(path, args.dataset+'/updated_{}_{}_{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
+    laplacian_path = osp.join(path, args.dataset+'/laplacian_max{}_min{}_threshold{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
     if os.path.exists(laplacian_path):  # Load saved probability matrix
         laoded_laplacian_path = torch.load(laplacian_path)
         print('Laplacian perturbations have beeen loaded!')
