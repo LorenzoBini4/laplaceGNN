@@ -234,8 +234,10 @@ class CentralitySpectralAugmentor_Graph(Augmentation):
         """
         x, edge_index, ptb_prob = g.unfold()
         ori_adj = to_dense_adj(edge_index, batch)
+        max_num_nodes = ori_adj.size(1)  # Get the number of nodes from the original adjacency
         ptb_idx, ptb_w = to_edge_index(ptb_prob)
-        ptb_m = to_dense_adj(ptb_idx, batch, ptb_w)
+        # Ensure ptb_m has the same dimensions as ori_adj
+        ptb_m = to_dense_adj(ptb_idx, batch, ptb_w, max_num_nodes=max_num_nodes)
         ptb_adj = self.random_sample(ptb_m)
         modified_adj = self.get_modified_adj(ori_adj, ptb_adj).detach()
 
