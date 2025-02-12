@@ -40,7 +40,7 @@ class Augmentation(ABC):
 
 ###################### Laplacian Max-Min Augmentation Module - LaplaceGNN Class ######################
 class Compose(Augmentation):
-    def __init__(self, augmentors: List[Augmentor]):
+    def __init__(self, augmentors: List[Augmentation]):
         super(Compose, self).__init__()
         self.augmentors = augmentors
 
