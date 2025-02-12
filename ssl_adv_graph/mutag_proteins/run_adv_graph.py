@@ -8,8 +8,6 @@ from tqdm import tqdm
 from torch_geometric.nn import GCNConv, global_add_pool
 from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
-import sys
-sys.path.append('../')
 
 from ../../laplaceGNN/utils import set_random_seeds
 from laplacian_eval_graph import get_split, LREvaluator_Graph
@@ -18,6 +16,8 @@ from LaplaceGNN4Graph import *
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
 from scheduler import CosineDecayScheduler
+import sys
+sys.path.append('../')
 import gc
 
 class GConv(nn.Module):
