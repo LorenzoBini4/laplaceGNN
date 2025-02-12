@@ -61,7 +61,7 @@ parser.add_argument('--lapl_max_lr ', type=float, default=100, help='augmentatio
 parser.add_argument('--lapl_min_lr ', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy')
 parser.add_argument('--lapl_epoch ', type=int, default=10, help='iteration for augmentation')
 parser.add_argument('--prob_feat', type=float, default=0.4, help='feature masking probability')  # if standard feature augmentations have been selected to be added 
-parser.add_argument('--threshold', type=float, default=0.3, help='edge perturbation probability')
+parser.add_argument('--threshold', type=float, default=0.3, help='threshold for edge perturbation')
 
 args = parser.parse_args()
 print("Arguments:")
