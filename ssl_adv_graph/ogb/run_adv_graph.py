@@ -267,7 +267,7 @@ def main():
         sample='no'
     )
 
-    L1_view = CentralitySpectralAugmentor_Graph(
+    L2_view = CentralitySpectralAugmentor_Graph(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
