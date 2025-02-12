@@ -17,7 +17,7 @@ sys.path.insert(0, '../..')
 from LaplaceGNN4Graph import LaplaceGNN_Graph
 from model_ogb import GNN
 from transforms import *
-from ../augmentor_graph import *
+from ../augmentations_graph import *
 
 parser = argparse.ArgumentParser(description='GNN baselines on ogbg data with PyG')
 parser.add_argument('--gnn', type=str, default='gcn',
@@ -255,7 +255,7 @@ def main():
     #     'eigenvector': nx.eigenvector_centrality(to_networkx(data))
     # }
 
-    L1_view = CentralitySpectralAugmentor_Graph(
+    L1_view = CentralitySpectralAugmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_max_lr,
         iteration=args.lapl_epoch,
@@ -267,7 +267,7 @@ def main():
         sample='no'
     )
 
-    L2_view = CentralitySpectralAugmentor_Graph(
+    L2_view = CentralitySpectralAugmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
@@ -285,15 +285,15 @@ def main():
     for i in tqdm(range(dataset.len())):
         data = dataset.get(i)        
         #print(f'dataset(0): {dataset.get(0)}')
-        data = span1.calc_prob(data, silence=True) # note that data is updated with data['max']=ptb_prob1
+        data = L1_view.calc_prob(data, silence=True) # note that data is updated with data['max']=ptb_prob1
         #print(f'data.max = {data.max}')
-        data = span2.calc_prob(data, silence=True) # note that data is further updated with data['min']=ptb_prob2
+        data = L2_view.calc_prob(data, silence=True) # note that data is further updated with data['min']=ptb_prob2
         #print(f'data.min = {data.min}')
         updated_dataset.append(data)  # Add the modified data object to the new dataset
         # print(batch_1, batch_2)
     print('Done precomputing probability for augmentation')
     #print(updated_dataset[0])
-    output_dir = './spec_dataset'
+    output_dir = './laplacian_dataset'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     dataset_name = f'spec_{args.dataset}'
