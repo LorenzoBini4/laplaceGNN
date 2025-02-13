@@ -116,7 +116,7 @@ def get_ogbn_papers100M(root):
 
 class ConcatDataset(InMemoryDataset):
     r"""
-    If needed, PyG class for merging multiple Dataset objects into one.
+    PyG class for merging multiple Dataset objects into one, if needed.
     """
     def __init__(self, datasets):
         super(ConcatDataset, self).__init__()
