@@ -156,8 +156,8 @@ class LaplaceGNN_Node(torch.nn.Module):
         x, edge_index = data.x, data.edge_index
         ptb_prob1 = data.max
         ptb_prob2 = data.min
-        # Apply augmentations
-        L1_view, L2_view = self.augmentations
+        # Apply augmentation
+        L1_view, L2_view = self.augmentation
         x1, edge_index1, _ = L1_view(x, edge_index, ptb_prob1, batch=None)
         x2, edge_index2, _ = L2_view(x, edge_index, ptb_prob2, batch=None)
 

@@ -5,7 +5,7 @@ import torch
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
 
-def modify_graph_v1(dataset, percentage=0.5):
+def laplace_v1(dataset, percentage=0.5):
     data = dataset[0]  # PyG datasets often have a single graph at index 0
     G = to_networkx(data, to_undirected=True)
     degree_centrality = nx.degree_centrality(G)  # Returns a dictionary with node -> centrality
@@ -26,7 +26,7 @@ def modify_graph_v1(dataset, percentage=0.5):
     modified_data.y = data.y
     
     print(50*'-')
-    print('modify_graph_v1 has been used')
+    print('laplace_v1 has been used')
     print(f"Percentage of top nodes used: {percentage}%")
     print(f"Length of top nodes list: {len(top_nodes)}")
     print(f"Length of non-top nodes list: {num_nodes - len(top_nodes)}")
@@ -35,7 +35,7 @@ def modify_graph_v1(dataset, percentage=0.5):
 
     return modified_data
 
-def modify_graph_v2_dc(dataset, percentage=2):
+def laplace_v2_dc(dataset, percentage=2):
     data = dataset[0]
     G = to_networkx(data, to_undirected=True)
     degree_centrality = nx.degree_centrality(G) # Returns a dictionary with node -> centrality
@@ -45,7 +45,7 @@ def modify_graph_v2_dc(dataset, percentage=2):
     # Identify non-top-centrality nodes
     non_top_nodes = [n for n in range(total_nodes) if n not in top_nodes]
     print(50*'-')
-    print('modify_graph_v2_dc has been used')
+    print('laplace_v2_dc has been used')
     print(f"Percentage of top nodes used: {percentage}%")
     print(f"Length of top nodes list: {len(top_nodes)}")
     print(f"Length of non-top nodes list: {len(non_top_nodes)}")
@@ -74,7 +74,7 @@ def modify_graph_v2_dc(dataset, percentage=2):
 
     return modified_data
 
-def modify_graph_v2_pc(dataset, percentage=2):
+def laplace_v2_pc(dataset, percentage=2):
     data = dataset[0]
     G = to_networkx(data, to_undirected=True)
     pagerank_centrality = nx.pagerank(G) # Returns a dictionary with node -> centrality
@@ -84,7 +84,7 @@ def modify_graph_v2_pc(dataset, percentage=2):
     # Identify non-top-centrality nodes based on centrality
     non_top_nodes = [n for n in range(total_nodes) if n not in top_nodes]
     print(50*'-')
-    print('modify_graph_v2_pc has been used')
+    print('laplace_v2_pc has been used')
     print(f"Percentage of top nodes used: {percentage}%")
     print(f"Length of top nodes list: {len(top_nodes)}")
     print(f"Length of non-top nodes list: {len(non_top_nodes)}")
@@ -113,7 +113,7 @@ def modify_graph_v2_pc(dataset, percentage=2):
 
     return modified_data
 
-def modify_graph_v3(dataset, percentage=2):
+def laplace_v3(dataset, percentage=2):
     data = dataset[0]
     G = to_networkx(data, to_undirected=True)
     degree_centrality = nx.degree_centrality(G)  # Compute degree centrality
@@ -123,7 +123,7 @@ def modify_graph_v3(dataset, percentage=2):
     non_top_nodes = [n for n in range(total_nodes) if n not in top_nodes]
     
     print(50 * '-')
-    print('modify_graph_v3 has been used')
+    print('laplace_v3 has been used')
     print(f"Percentage of top nodes used: {percentage}%")
     print(f"Length of top nodes list: {len(top_nodes)}")
     print(f"Length of non-top nodes list: {len(non_top_nodes)}")

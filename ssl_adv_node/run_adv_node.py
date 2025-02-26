@@ -1,28 +1,31 @@
 import copy
 import logging
 import os
-
 from absl import app
 from absl import flags
 import torch
 from torch.nn.functional import cosine_similarity
 from torch.optim import AdamW
 from tqdm import tqdm
-
+import os.path as osp
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from torch_geometric.nn import GCNConv
-#from ../laplaceGNN import *
-from ../laplaceGNN.models import *
-from ../laplaceGNN.laplaceGNN import *
+from laplaceGNN.models import *
+from laplaceGNN.laplaceGNN import *
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
-from ../laplaceGNN.utils import set_random_seeds
-from ../laplaceGNN.data import get_dataset, get_ogbn_arxiv, get_wiki_cs, get_citeseer,   get_cora, get_pubmed, get_ogbn_papers100M
-from ../laplaceGNN.log_regr_eval import log_regr_ogbn_arxiv_liblinear, log_regr_ogbn_arxiv_adam, log_regr_ogbn_paper100M_liblinear
+from laplaceGNN.utils import set_random_seeds
+from laplaceGNN.data import get_dataset, get_ogbn_arxiv, get_wiki_cs, get_citeseer,   get_cora, get_pubmed, get_ogbn_papers100M
+from laplaceGNN.log_regr_eval import log_regr_ogbn_arxiv_liblinear, log_regr_ogbn_arxiv_adam, log_regr_ogbn_paper100M_liblinear, log_regr_preset_splits, log_regr
 from geomloss import SamplesLoss
-from ../laplacian_augmentations.label_guide_ssl import *
-from ../laplacian_augmentations.laplacian_node import *
+from laplacian_augmentations.label_guide_ssl import *
+from laplacian_augmentations.laplacian_node import *
+from laplaceGNN.utils import *
+from laplaceGNN.transform import *
 import gc
-from ../laplaceGNN.laplacian_evaluation import *
+from laplaceGNN.laplacian_evaluation import *
+from ssl_adv_graph.tudataset.predictors import *
 
 log = logging.getLogger(__name__)
 FLAGS = flags.FLAGS
@@ -62,7 +65,7 @@ flags.DEFINE_integer('eval_epochs', 5, 'Evaluate every eval_epochs.')
 flags.DEFINE_string('logdir', None, 'Where the checkpoint and logs are stored.')
 
 class Args:
-    delta = 8e-3 
+    delta = 8e-5
     step_size = 8e-3 
     m = 3 
     accumulation_steps = 2 # 2-4 accumulation steps is a good starting point to simulate a larger batch size.
@@ -72,8 +75,8 @@ class Args:
     weight_decay = 8e-4 
     lapl_max_lr = 100
     lapl_min_lr = 0.1
-    lapl_epoch = 10 #20
-    # prob_feat = 0.4 # if standard feature augmentations have been selected to be added 
+    lapl_epoch = 7 # 40
+    prob_feat = 0.4 # if standard feature augmentations have been selected to be added 
     treshold = 0.3
 args = Args()
 
@@ -161,34 +164,46 @@ def main(argv):
         sample='no'
     )
 
-    x1=L1_view.calc_prob(data, precomputed_centrality=None) # now data contains data['max']=ptb_prob1
-    # del x1
-    torch.cuda.empty_cache()
-    gc.collect()  
-    x2=L2_view.calc_prob(data, precomputed_centrality=None) # note data contains data['min']=ptb_prob2
-    torch.cuda.empty_cache()
-    gc.collect() 
-    
-    # # data = modify_graph_v2_dc(dataset, percentage=2)
-    print(f'Dataset used: {FLAGS.dataset}')
-  
-    # uncomment if wanna use LaplaceGNN_v2 later
-    # L1 = Compose([L1_view], FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
-    # L2 = Compose([L2_view], FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
+    def laplacian_clean(view, data):
+        # Compute MaxMin Laplacian probability
+        result = view.calc_prob(data, precomputed_centrality=None)
+        result = result.cpu()
+        torch.cuda.empty_cache()
+        gc.collect()
+        return result
 
-    # prepare transforms
-    transform_1 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_1, drop_feat_p=FLAGS.drop_feat_p_1)
-    transform_2 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_2, drop_feat_p=FLAGS.drop_feat_p_2)
-    # x1, x2 = modify_graph_v2_dc(dataset, percentage=2), modify_graph_v2_pc(dataset, percentage=2)
-    x1, x2 = x1.to(device), x2.to(device)
+    if FLAGS.dataset == 'ogbn-arxiv': 
+        # data  = laplace_v2_dc(dataset, percentage=2)
+        x1, x2 = data.to(device), data.to(device)
+    else: 
+        # data  = laplace_v2_dc(dataset, percentage=2)
+        # x1, x2 = laplace_v2_dc(dataset, percentage=2), laplace_v2_pc(dataset, percentage=2)
+        # x1, x2 = data.to(device), data.to(device)
+
+        x1 = laplacian_clean(L1_view, data)  # now data['max'] is used internally
+        x2 = laplacian_clean(L2_view, data)  # now data['min'] is used internally
+        x1, x2 = x1.to(device), x2.to(device)
+
+        print(f'Dataset used: {FLAGS.dataset}')
+    
+        # uncomment if wanna use LaplaceGNN_v2 later
+        # L1 = Compose([L1_view, FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
+        # L2 = Compose([L2_view, FeatAugmentation(prob_feat=args.prob_feat)]) # --> to add standard feat augmentations as well
+
+        # prepare transforms
+        transform_1 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_1, drop_feat_p=FLAGS.drop_feat_p_1)
+        transform_2 = get_graph_drop_transform(drop_edge_p=FLAGS.drop_edge_p_2, drop_feat_p=FLAGS.drop_feat_p_2)
+ 
     ####################################################################
     
     # build teacher-student encoders networks
     input_size, representation_size = data.x.size(1), FLAGS.graph_encoder_layer[-1]
     if FLAGS.dataset in ['ogbn-arxiv', 'ogbn-papers-100M']:
         encoder = Encoder_Adversarial_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=False, layernorm=True, weight_standardization=True)
+    elif FLAGS.dataset in ['coauthor-cs']:
+        encoder = Encoder_Adversarial_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
     else:
-        encoder = Encoder_Adversarial_GraphSAGE([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
+        encoder = Encoder_Adversarial_GCN([input_size] + FLAGS.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False)
     predictor = MLP_Predictor(representation_size, representation_size, hidden_size=FLAGS.predictor_hidden_size)
     model = LaplaceGNN_v1(encoder, predictor).to(device)
     # model = LaplaceGNN_v2(encoder, predictor, augmentation=(L1,L2)).to(device)
@@ -361,9 +376,10 @@ def main(argv):
                 # best_accuracy = max(best_accuracy, score)  
                 # print(f'Best Accuracy Obtained: {best_accuracy}')
         elif FLAGS.dataset == 'ogbn-arxiv':
-            print("Using log_regr_ogbn_arxiv_adam")
-            scores = log_regr_ogbn_arxiv_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            # print("Using log_regr_ogbn_arxiv_adam")
             # score = log_regr_ogbn_arxiv_adam(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
+            print("Using log_regr_liblinear")
+            scores = log_regr_ogbn_arxiv_liblinear(representations.cpu().numpy(), labels.cpu().numpy(), train_masks, val_masks, test_masks)
             # print(f'Epoch: {epoch}, Accuracy: {score}')
             # best_accuracy = max(best_accuracy, score)  
         else:

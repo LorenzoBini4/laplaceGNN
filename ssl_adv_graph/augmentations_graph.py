@@ -10,7 +10,7 @@ from torch_sparse import SparseTensor
 from torch_geometric.utils.sparse import to_edge_index
 from torch_geometric.utils import unbatch, unbatch_edge_index
 from torch_geometric.data import Batch, Data
-from utils import get_adj_tensor, preprocess_adj, get_normalize_adj_tensor, to_dense_adj, dense_to_sparse, switch_edge, drop_feature
+from laplaceGNN.utils import get_adj_tensor, preprocess_adj, get_normalize_adj_tensor, to_dense_adj, dense_to_sparse, drop_feature
 
 ###################### Standard Class ######################
 class Graph(NamedTuple):
@@ -61,10 +61,10 @@ class FeatAugmentation(Augmentation):
     def get_aug_name(self):
         return 'feature'
 
-class CentralitySpectralAugmentation_Graph(Augmentation):
-    def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, sample='no', threshold=0.5):
+class LaplaceGNN_Augmentation_Graph(Augmentation):
+    def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, precomputed_centrality, sample='no', threshold=0.5):
         """
-        Centrality-guided Laplacian Spectral Augmentor.
+        Centrality-guided LaplaceGNN_Augmentation_Graph.
         Args:
             ratio (float): Ratio of edges to perturb.
             lr (float): Learning rate for gradient updates.
@@ -76,7 +76,7 @@ class CentralitySpectralAugmentation_Graph(Augmentation):
             sample (str): Sampling mode ('yes' or 'no').
             threshold (float): Perturbation threshold for projection.
         """
-        super(CentralitySpectralAugmentation_Graph, self).__init__()
+        super(LaplaceGNN_Augmentation_Graph, self).__init__()
         self.ratio = ratio
         self.lr = lr
         self.iteration = iteration
@@ -84,6 +84,7 @@ class CentralitySpectralAugmentation_Graph(Augmentation):
         self.device = device
         self.centrality_types = centrality_types
         self.centrality_weights = centrality_weights
+        self.precomputed_centrality = precomputed_centrality    
         self.sample = sample
         self.threshold = threshold
 
@@ -162,7 +163,7 @@ class CentralitySpectralAugmentation_Graph(Augmentation):
         n_perturbations = int(self.ratio * (ori_adj.sum() / 2))
         optimizer = torch.optim.Adam([adj_changes], lr=self.lr)
 
-        with tqdm(total=self.iteration, desc='Centrality LaplaceGNN4Graph Augmentation', disable=silence) as pbar:
+        with tqdm(total=self.iteration, desc='Centrality LaplaceGNN Augmentation', disable=silence) as pbar:
             for t in range(1, self.iteration + 1):
                 optimizer.zero_grad()
 

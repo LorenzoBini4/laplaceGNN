@@ -235,8 +235,6 @@ class LaplaceGNN_v2(torch.nn.Module):
 
         return online_q, target_y
     
-        return encoder.to(device)
-    
     def compute_representations(net, dataset, device):
         r"""Pre-computes the representations for the entire dataset.
         """
@@ -256,3 +254,103 @@ class LaplaceGNN_v2(torch.nn.Module):
         reps = torch.cat(reps, dim=0)
         labels = torch.cat(labels, dim=0)
         return [reps, labels]
+    
+    def compute_zinc_representations(net, dataset, device, pooling='mean'):
+        """
+        Pre-computes the graph-level representations for the entire dataset.
+        Args:
+            net (torch.nn.Module): The encoder network.
+            dataset (Dataset): The dataset to process.
+            device (torch.device): Device to use for computation.
+            pooling (str): Pooling method to apply to node-level representations ('mean' or 'max').
+        """
+        net.eval()
+        reps = []
+        labels = []
+        pooling_layer = None
+    
+        # Define a pooling layer if needed
+        if pooling == 'mean':
+            pooling_layer = pyg_nn.global_mean_pool
+        elif pooling == 'max':
+            pooling_layer = pyg_nn.global_max_pool
+    
+        for data in dataset:
+            data = data.to(device)
+            with torch.no_grad():
+                node_reps = net(data)  # Node-level representations
+    
+                # Apply pooling to get a graph-level representation
+                if pooling_layer is not None:
+                    graph_rep = pooling_layer(node_reps, data.batch)  # Apply pooling
+                else:
+                    raise ValueError("Unsupported pooling type. Use 'mean' or 'max'.")
+    
+                reps.append(graph_rep)
+                labels.append(data.y.unsqueeze(1))  # Ensure labels are 2D for consistency
+    
+        # Concatenate all graph-level representations and labels
+        reps = torch.cat(reps, dim=0)
+        labels = torch.cat(labels, dim=0)
+    
+        return reps, labels
+
+def compute_representations(net, dataset, device):
+    r"""Pre-computes the representations for the entire dataset.
+    """
+    net.eval()
+    reps = []
+    labels = []
+
+    for data in dataset:
+        # forward
+        if isinstance(data, dict):
+            data = {k: v.to(device) if hasattr(v, 'to') else v for k, v in data.items()}
+        else:
+            data = data.to(device)
+        with torch.no_grad():
+            reps.append(net(data))
+            labels.append(data.y)
+    reps = torch.cat(reps, dim=0)
+    labels = torch.cat(labels, dim=0)
+    return [reps, labels]
+
+def compute_zinc_representations(net, dataset, device, pooling='mean'):
+    """
+    Pre-computes the graph-level representations for the entire dataset.
+    Args:
+        net (torch.nn.Module): The encoder network.
+        dataset (Dataset): The dataset to process.
+        device (torch.device): Device to use for computation.
+        pooling (str): Pooling method to apply to node-level representations ('mean' or 'max').
+    """
+    net.eval()
+    reps = []
+    labels = []
+    pooling_layer = None
+
+    # Define a pooling layer if needed
+    if pooling == 'mean':
+        pooling_layer = pyg_nn.global_mean_pool
+    elif pooling == 'max':
+        pooling_layer = pyg_nn.global_max_pool
+
+    for data in dataset:
+        data = data.to(device)
+        with torch.no_grad():
+            node_reps = net(data)  # Node-level representations
+
+            # Apply pooling to get a graph-level representation
+            if pooling_layer is not None:
+                graph_rep = pooling_layer(node_reps, data.batch)  # Apply pooling
+            else:
+                raise ValueError("Unsupported pooling type. Use 'mean' or 'max'.")
+
+            reps.append(graph_rep)
+            labels.append(data.y.unsqueeze(1))  # Ensure labels are 2D for consistency
+
+    # Concatenate all graph-level representations and labels
+    reps = torch.cat(reps, dim=0)
+    labels = torch.cat(labels, dim=0)
+
+    return reps, labels

@@ -13,16 +13,17 @@ from tqdm import trange
 import sys
 # OGB datasets
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
-sys.path.insert(0, '../..')
+# Add the current directory to sys.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from LaplaceGNN4Graph import LaplaceGNN_Graph
 from models_ogb import GNN
 from transforms import *
-from ../augmentations_graph import *
+from ..augmentations_graph import *
 
 parser = argparse.ArgumentParser(description='GNN baselines on ogbg data with PyG')
 parser.add_argument('--gnn', type=str, default='gcn',
                     help='GNN gin, or gcn (default: gin)')
-parser.add_argument('--drop_ratio', type=float, default=0.2,
+parser.add_argument('--drop_ratio', type=float, default=0,
                     help='dropout ratio (default: 0.5)')
 parser.add_argument('--decay', type=float, default=0.99,
                     help='moving_average_decay (default: 0.99)')
@@ -50,16 +51,16 @@ parser.add_argument('--m', type=int, default=3)
 parser.add_argument('--test_freq', type=int, default=10)
 parser.add_argument('--num_tasks', type=int, default=512) # for evaluating on standard protocol
 parser.add_argument('--projection_hidden_size', type=int, default=64)
-parser.add_argument('--seed', type=int, default=312)
+parser.add_argument('--seed', type=int, default=77)
 parser.add_argument('--projection_size', type=int, default=512)
 parser.add_argument('--prediction_size', type=int, default=512)
-parser.add_argument('--drop_edge_p_1', type=float, default=0.4)
-parser.add_argument('--drop_feat_p_1', type=float, default=0.3)
+parser.add_argument('--drop_edge_p_1', type=float, default=0.1)
+parser.add_argument('--drop_feat_p_1', type=float, default=0.1)
 parser.add_argument('--drop_edge_p_2', type=float, default=0.3)
-parser.add_argument('--drop_feat_p_2', type=float, default=0.4)
-parser.add_argument('--lapl_max_lr ', type=float, default=100, help='augmentation learning rate for laplacian max strategy')
-parser.add_argument('--lapl_min_lr ', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy')
-parser.add_argument('--lapl_epoch ', type=int, default=10, help='iteration for augmentation')
+parser.add_argument('--drop_feat_p_2', type=float, default=0.1)
+parser.add_argument('--lapl_max_lr', type=float, default=100, help='augmentation learning rate for laplacian max strategy')
+parser.add_argument('--lapl_min_lr', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy')
+parser.add_argument('--lapl_epoch', type=int, default=10, help='iteration for augmentation')
 parser.add_argument('--prob_feat', type=float, default=0.4, help='feature masking probability')  # if standard feature augmentations have been selected to be added 
 parser.add_argument('--threshold', type=float, default=0.3, help='threshold for edge perturbation')
 
@@ -83,7 +84,7 @@ class MLP(torch.nn.Module):
     def forward(self, x):
         return self.layers(x)
 
-def train_adv_bootstrap(model, device, loader, optimizer, task_type, args, lap1, lap2, feat_augmentation=None):
+def train_adv_bootstrap(model, device, loader, optimizer, task_type, args, L1_view, L2_view, feat_augmentation=None):
     total_loss = 0
     for batch in loader:
         batch = batch.to(device)
@@ -92,8 +93,8 @@ def train_adv_bootstrap(model, device, loader, optimizer, task_type, args, lap1,
         ptb_prob1 = batch.max  # Precomputed max probability
         ptb_prob2 = batch.min  # Precomputed min probability
 
-        L1_view  = Compose([lap1, feat_augmentor])
-        L2_view  = Compose([lap2, feat_augmentor])
+        L1_view  = Compose([L1_view, feat_augmentation])
+        L2_view  = Compose([L2_view, feat_augmentation])
 
         # Create augmented batches
         x1, edge_index1, _ = L1_view(batch.x, batch.edge_index, ptb_prob1, batch=batch.batch)
@@ -152,10 +153,10 @@ def evaluation(model, logreg, linear_optimizer, device, train_loader, val_loader
                 optimizer.step()
             if epoch % 10 == 0:
                 train_perf = eval_model(model, logreg, device, train_loader, evaluator)
-                valid_perf = eval_model(model, logreg, device, valid_loader, evaluator)
+                val_perf = eval_model(model, logreg, device, val_loader, evaluator)
                 test_perf = eval_model(model, logreg, device, test_loader, evaluator)
 
-                tra, val, tst = (train_perf[metric], valid_perf[metric], test_perf[metric])
+                tra, val, tst = (train_perf[metric], val_perf[metric], test_perf[metric])
 
                 if val > best_val:
                     best_train, best_val, best_test = tra, val, tst
@@ -255,7 +256,7 @@ def main():
     #     'eigenvector': nx.eigenvector_centrality(to_networkx(data))
     # }
 
-    L1_view = CentralitySpectralAugmentation_Graph(
+    L1_view = LaplaceGNN_Augmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_max_lr,
         iteration=args.lapl_epoch,
@@ -267,7 +268,7 @@ def main():
         sample='no'
     )
 
-    L2_view = CentralitySpectralAugmentation_Graph(
+    L2_view = LaplaceGNN_Augmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
@@ -296,13 +297,13 @@ def main():
     output_dir = './laplacian_dataset'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    dataset_name = f'spec_{args.dataset}'
+    dataset_name = f'laplacian_{args.dataset}'
     output_file = os.path.join(output_dir, f'{dataset_name}.pt')
     torch.save(updated_dataset, output_file)
     #exit()
     # Save the updated data to re-use in future
     ######################## LOAD AUGMENTATION ########################
-    dataset_path = os.path.join(output_dir, f'spec_{args.dataset}.pt')
+    dataset_path = os.path.join(output_dir, f'laplacian_{args.dataset}.pt')
     if os.path.exists(dataset_path):
         updated_dataset = torch.load(dataset_path)
         print(f"Loaded precomputed dataset from {dataset_path}")
@@ -348,7 +349,7 @@ def main():
         else:
             raise ValueError('Invalid GNN-encoder type')
 
-        model = LaplacianGNN_Graph(encoder, num_tasks=dataset.num_tasks, emb_dim = args.emb_dim, projection_size=args.projection_size,
+        model = LaplaceGNN_Graph(encoder, num_tasks=dataset.num_tasks, emb_dim = args.emb_dim, projection_size=args.projection_size,
                      prediction_size=args.prediction_size, projection_hidden_size=args.projection_hidden_size,
                      moving_average_decay = args.decay
                      )
@@ -373,7 +374,7 @@ def main():
 
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         for epoch in tqdm(range(1, args.epochs+1)):
-            loss = train_adv_bootstrap(model, device, train_loader, optimizer, None, args, lap1, lap2, feat_augmentation=FeatAugmentation(pf=args.prob_feat))
+            loss = train_adv_bootstrap(model, device, train_loader, optimizer, None, args, L1_view, L2_view, feat_augmentation=FeatAugmentation(pf=args.prob_feat))
             if epoch % args.test_freq == 0 or epoch == args.epochs:
                 linear_optimizer = torch.optim.Adam(logreg.parameters(), lr=3e-4)
                 result = evaluation(model, logreg, linear_optimizer, device, train_loader, val_loader, test_loader, evaluator, dataset.eval_metric)

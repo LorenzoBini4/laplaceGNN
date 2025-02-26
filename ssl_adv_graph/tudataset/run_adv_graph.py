@@ -8,16 +8,14 @@ from tqdm import tqdm
 from torch_geometric.nn import GCNConv, global_add_pool
 from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
-
-from ../../laplaceGNN.utils import set_random_seeds
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from laplaceGNN.utils import set_random_seeds, CosineDecayScheduler
 from laplacian_eval_graph import get_split, LaplacianLogRegr
-from ../augmentations_graph import CentralitySpectralAugmentation_Graph
+from ..augmentations_graph import LaplaceGNN_Augmentation_Graph
 from laplaceGNN4Graph import LaplaceGNN_Graph
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
-from scheduler import CosineDecayScheduler
-import sys
-sys.path.append('../')
 import gc
 
 class GConv(nn.Module):
@@ -128,8 +126,12 @@ def arg_parse():
     parser.add_argument('--seed', type=int, default=77, help='Random seed')
     parser.add_argument('--device', type=int, default=0, help='cuda')
     parser.add_argument('--dataset', type=str, default='PROTEINS', choices=['MUTAG', 'PROTEINS', 'NCI1', 'IMDB-BINARY', 'IMDB-MULTI'])
-    parser.add_argument('--graph_encoder_layer', type=int, nargs='+', default=[512, 512], help='Conv layer sizes.')
-    parser.add_argument('--predictor_hidden_size', type=int, default=512, help='Hidden size of projector.')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training.')
+    parser.add_argument('--gnn1_dim', type=int, default=64, help='The hidden dimension of the first GNN layer.')
+    parser.add_argument('--gnn1_num_layers', type=int, default=2, help='The number of layers of the first GNN.')
+    parser.add_argument('--gnn2_dim', type=int, default=64, help='The hidden dimension of the second GNN layer.')
+    parser.add_argument('--gnn2_num_layers', type=int, default=2, help='The number of layers of the second GNN.')
+    parser.add_argument('--mlp_dim', type=int, default=64, help='The hidden dimension of the MLP.')
     parser.add_argument('--lr', type=float, default=1e-5, help='The learning rate for model training.')
     parser.add_argument('--weight_decay', type=float, default=6e-5, help='The value of the weight decay for training.')
     parser.add_argument('--mm', type=float, default=0.99, help='The momentum for moving average.')
@@ -139,11 +141,11 @@ def arg_parse():
     parser.add_argument('--temperature', type=float, default=0.04, help='The temperature for sharpening.')
     parser.add_argument('--lr_warmup_epochs', type=int, default=50, help='Warmup period for learning rate.')
     parser.add_argument('--epoch', type=int, default=500, help='LaplaceGNN number of epochs for training')
-    parser.add_argument('--lapl_max_lr ', type=float, default=100, help='augmentation learning rate for laplacian max strategy')
-    parser.add_argument('--lapl_min_lr ', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy')
-    parser.add_argument('--lapl_epoch ', type=int, default=10, help='iteration for augmentation')
+    parser.add_argument('--lapl_max_lr', type=float, default=0.5, help='augmentation learning rate for laplacian max strategy')
+    parser.add_argument('--lapl_min_lr', type=float, default=0.5, help='augmentation learning rate for laplacian min strategy')
+    parser.add_argument('--lapl_epoch', type=int, default=40, help='iteration for augmentation')
     parser.add_argument('--prob_feat', type=float, default=0.4, help='feature masking probability')  # if standard feature augmentations have been selected to be added 
-    parser.add_argument('--threshold', type=float, default=0.3, help='threshold for edge perturbation')
+    parser.add_argument('--threshold', type=float, default=0.2, help='threshold for edge perturbation')
     parser.add_argument('--accumulation_steps', type=int, default=1, help='gradient accumulation steps')
     parser.add_argument('--delta', type=float, default=8e-2, help='perturbation magnitude')
     parser.add_argument('--m', type=int, default=2, help='number of inner maximization steps')
@@ -171,7 +173,7 @@ def main():
     #     'eigenvector': nx.eigenvector_centrality(to_networkx(data))
     # }
 
-    L1_view = CentralitySpectralAugmentation_Graph(
+    L1_view = LaplaceGNN_Augmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_max_lr,
         iteration=args.lapl_epoch,
@@ -183,7 +185,7 @@ def main():
         sample='no'
     )
 
-    L2_view = CentralitySpectralAugmentation_Graph(
+    L2_view = LaplaceGNN_Augmentation_Graph(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
@@ -198,7 +200,7 @@ def main():
     # Precompute laplacian perturbation or load them
     laplacian_path = osp.join(path, args.dataset+'/laplacian_max{}_min{}_threshold{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
     if os.path.exists(laplacian_path):  # Load saved probability matrix
-        laoded_laplacian_path = torch.load(laplacian_path)
+        loaded_laplacian_path = torch.load(laplacian_path)
         print('Laplacian perturbations have beeen loaded!')
     else:  
         print('Laplacian perturbations under computation')
@@ -212,12 +214,12 @@ def main():
         torch.save(loaded_laplacian_path, laplacian_path)
     
     # LaplaceGNN main loop
-    dataloader = DataLoader(update_data_ls, batch_size=32, shuffle=True)  
-    gconv1 = GConv(input_dim=dataset.num_features, hidden_dim=512, num_layers=2).to(device)
-    gconv2 = GConv(input_dim=512, hidden_dim=512, num_layers=2).to(device)  
+    dataloader = DataLoader(loaded_laplacian_path, batch_size=args.batch_size, shuffle=True)
+    gconv1 = GConv(input_dim=dataset.num_features, hidden_dim=args.gnn1_dim, num_layers=args.gnn1_num_layers).to(device)
+    gconv2 = GConv(input_dim=args.gnn1_dim, hidden_dim=args.gnn2_dim, num_layers=args.gnn2_num_layers).to(device)
     gcn_encoder = GCNEncoder(gconv1, gconv2).to(device)
-    mlp1 = FC(input_dim=512, output_dim=512)
-    mlp2 = FC(input_dim=512, output_dim=512) 
+    mlp1 = FC(input_dim=args.gnn2_dim, output_dim=args.mlp_dim)
+    mlp2 = FC(input_dim=args.mlp_dim, output_dim=args.gnn2_dim)
     predictor = nn.Sequential(mlp1, mlp2).to(device)
     encoder_model = LaplaceGNN_Graph(gcn_encoder, predictor, augmentation=(L1_view,L2_view)).to(device)
     lr_scheduler = CosineDecayScheduler(args.lr, args.lr_warmup_epochs, args.epoch)

@@ -3,7 +3,7 @@ import numpy as np
 import os
 import os.path as osp
 import sys
-sys.path.append('../')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import gc
 import torch
 from torch import nn
@@ -14,12 +14,10 @@ from torch_geometric.nn.inits import uniform
 from torch_geometric.datasets import Planetoid, Amazon, Coauthor, WikiCS
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
-from scheduler import CosineDecayScheduler
-
-from ../../laplaceGNN.utils import set_random_seeds
+from laplaceGNN.utils import set_random_seeds, CosineDecayScheduler
 from laplacian_eval_graph import get_split, LaplacianLogRegr
 from laplaceGNN4Graph import LaplaceGNN_Node
-from ../../laplacian_augmentations.laplacian_node import *
+from laplacian_augmentations.laplacian_node import *
 from predictors import *
 from models import *
 import gc
@@ -70,23 +68,23 @@ def arg_parse():
     parser.add_argument('--graph_encoder_layer', type=int, nargs='+', default=[512, 512], help='Conv layer sizes.')
     parser.add_argument('--predictor_hidden_size', type=int, default=512, help='Hidden size of projector.')
     parser.add_argument('--lr', type=float, default=1e-3, help='The learning rate for model training.')
-    parser.add_argument('--weight_decay', type=float, default=1e-5, help='The value of the weight decay for training.')
+    parser.add_argument('--weight_decay', type=float, default=8e-4, help='The value of the weight decay for training.')
     parser.add_argument('--mm', type=float, default=0.99, help='The momentum for moving average.')
     parser.add_argument('--centering', action='store_true', help='Whether to center the momentum.')
     parser.add_argument('--sharpening', action='store_true', help='Whether to sharpen the momentum.')
     parser.add_argument('--center_mm', type=float, default=0.9, help='The momentum for centering.')
     parser.add_argument('--temperature', type=float, default=0.04, help='The temperature for sharpening.')
     parser.add_argument('--lr_warmup_epochs', type=int, default=50, help='Warmup period for learning rate.')
-    parser.add_argument('--epoch', type=int, default=500, help='LaplaceGNN number of epochs for training')
-    parser.add_argument('--lapl_max_lr ', type=float, default=100, help='augmentation learning rate for laplacian max strategy')
-    parser.add_argument('--lapl_min_lr ', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy')
-    parser.add_argument('--lapl_epoch ', type=int, default=10, help='iteration for augmentation')
-    parser.add_argument('--prob_feat', type=float, default=0.4, help='feature masking probability')  # if standard feature augmentations have been selected to be added 
-    parser.add_argument('--threshold', type=float, default=0.3, help='threshold for edge perturbation')
-    parser.add_argument('--accumulation_steps', type=int, default=1, help='gradient accumulation steps')
-    parser.add_argument('--delta', type=float, default=0.001, help='perturbation magnitude')
-    parser.add_argument('--m', type=int, default=1, help='number of inner maximization steps')
-    parser.add_argument('--step_size', type=float, default=0.001, help='step size for inner maximization')
+    parser.add_argument('--epoch', type=int, default=500, help='LaplaceGNN number of epochs for training.')
+    parser.add_argument('--lapl_max_lr', type=float, default=100, help='augmentation learning rate for laplacian max strategy.')
+    parser.add_argument('--lapl_min_lr', type=float, default=0.1, help='augmentation learning rate for laplacian min strategy.')
+    parser.add_argument('--lapl_epoch', type=int, default=10, help='iteration for augmentation.')
+    parser.add_argument('--prob_feat', type=float, default=0.4, help='feature masking probability.')  # if standard feature augmentations have been selected to be added 
+    parser.add_argument('--threshold', type=float, default=0.3, help='threshold for edge perturbation.')
+    parser.add_argument('--accumulation_steps', type=int, default=1, help='gradient accumulation steps.')
+    parser.add_argument('--delta', type=float, default=0.001, help='perturbation magnitude.')
+    parser.add_argument('--m', type=int, default=1, help='number of inner maximization steps.')
+    parser.add_argument('--step_size', type=float, default=0.001, help='step size for inner maximization.')
     return parser.parse_args()
 
 def main():
@@ -118,7 +116,7 @@ def main():
     #     'eigenvector': nx.eigenvector_centrality(to_networkx(data))
     # }
 
-    L1_view = CentralitySpectralAugmentation_Node(
+    L1_view = LaplaceGNN_Augmentation_Node(
         ratio=args.threshold,
         lr=args.lapl_max_lr,
         iteration=args.lapl_epoch,
@@ -130,7 +128,7 @@ def main():
         sample='no'
     )
 
-    L2_view = CentralitySpectralAugmentation_Node(
+    L2_view = LaplaceGNN_Augmentation_Node(
         ratio=args.threshold,
         lr=args.lapl_min_lr,
         iteration=args.lapl_epoch,
@@ -143,16 +141,18 @@ def main():
     )
 
     # Precompute laplacian perturbation or load them
-    laplacian_path = osp.join(path, args.dataset+'/laplacian_max{}_min{}_threshold{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
+    laplacian_dir = osp.join(path, args.dataset)
+    os.makedirs(laplacian_dir, exist_ok=True)
+    laplacian_path = osp.join(laplacian_dir, 'laplacian_max{}_min{}_threshold{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
     if os.path.exists(laplacian_path):  # Load saved probability matrix
-        loaded_laplacian_path = torch.load(laplacian_path)
+        data = torch.load(laplacian_path)
         print('Laplacian perturbations have beeen loaded!')
         print(f'Data before applying augmentor: {data}')
         print(50*'-')
     else:  
         print('Laplacian perturbations under computation')
         assert dataset.len() == 1  # now it's node classifiction task
-        laplacian_path = []
+        data = dataset.get(0)
         print(f'Data before applying augmentor: {data}')
         L1_view.calc_prob(data) # now max-laplacian has been encoded as data['max']=ptb_prob1
         torch.cuda.empty_cache()
@@ -170,8 +170,8 @@ def main():
     print(50*'-')
     # exit()
     data = data.to(device)
-    L1 = Compose([L1_view, FeatAugmentation(pf=args.prob_feat)])
-    L2 = Compose([L2_view, FeatAugmentation(pf=args.prob_feat)])
+    L1 = Compose([L1_view, FeatAugmentation(prob_feat=args.prob_feat)])
+    L2 = Compose([L2_view, FeatAugmentation(prob_feat=args.prob_feat)])
     input_size, representation_size = data.x.size(1), args.graph_encoder_layer[-1]
     encoder = Encoder_Adversarial_GCN([input_size] + args.graph_encoder_layer, batchnorm=True, layernorm=False, weight_standardization=False).to(device)    
     predictor = MLP_Predictor(representation_size, representation_size, hidden_size=args.predictor_hidden_size).to(device)

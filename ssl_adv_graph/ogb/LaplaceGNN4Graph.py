@@ -50,7 +50,7 @@ def singleton(cache_key):
         return wrapper
     return inner_fn
 
-class LaplacianGNN_Graph(nn.Module):
+class LaplaceGNN_Graph(nn.Module):
     r""" LaplaceGNN: LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
     """
     def __init__(self, net, emb_dim=512, projection_hidden_size=512, projection_size=512, prediction_size = 512, num_tasks = 512, moving_average_decay = 0.99):

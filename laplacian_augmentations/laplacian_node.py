@@ -10,7 +10,9 @@ from torch_sparse import SparseTensor
 from torch_geometric.utils.sparse import to_edge_index
 from torch_geometric.utils import unbatch, unbatch_edge_index
 from torch_geometric.data import Batch, Data
-from utils import get_adj_tensor, get_normalize_adj_tensor, to_dense_adj, dense_to_sparse, switch_edge, drop_feature
+from laplaceGNN.utils import get_adj_tensor, get_normalize_adj_tensor, drop_feature
+from torch_geometric.utils import to_dense_adj, dense_to_sparse
+
 
 ###################### Standard Class ######################
 class Graph(NamedTuple):
@@ -46,16 +48,16 @@ class FeatAugmentation(Augmentation):
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
         x, edge_index, _ = g.unfold()
-        x = drop_feature(x, self.pf)
+        x = drop_feature(x, self.prob_feat)
         return Graph(x=x, edge_index=edge_index, ptb_prob=None)
 
     def get_aug_name(self):
         return 'feature'
 
 class Compose(Augmentation):
-  def __init__(self, augmentations: List[Augmentation]):
-        super(Compose, self).__init__()
-        self.augmentations = augmentations
+    def __init__(self, augmentations: List[Augmentation]):
+            super(Compose, self).__init__()
+            self.augmentations = augmentations
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:
         for aug in self.augmentations:
@@ -77,7 +79,7 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             sample (str): Sampling mode ('yes' or 'no').
             threshold (float): Perturbation threshold for projection.
         """
-        super(CentralitySpectralAugmentor_Node, self).__init__()
+        super(LaplaceGNN_Augmentation_Node, self).__init__()
         self.ratio = ratio
         self.lr = lr
         self.iteration = iteration
@@ -98,8 +100,8 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             torch.Tensor: Combined centrality scores normalized to [0, 1].
         """
         ####################################### Needed only for WikyCS dataset
-        # adj = (adj + adj.T) / 2.0  # Symmetrize
-        # adj += torch.eye(adj.shape[0], device=adj.device) * 1e-6  # Regularization
+        adj = (adj + adj.T) / 2.0  # Symmetrize
+        adj += torch.eye(adj.shape[0], device=adj.device) * 1e-6  # Regularization
         #######################################
         centrality_scores = {}
         for centrality_type in self.centrality_types:
@@ -200,7 +202,7 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
         n_perturbations = int(self.ratio * (ori_adj.sum() / 2))
 
         # Progress tracking
-        with tqdm(total=self.iteration, desc='Centrality Spectral Augment', disable=silence) as pbar:
+        with tqdm(total=self.iteration, desc='Centrality LaplaceGNN Augmentation', disable=silence) as pbar:
             for t in range(1, self.iteration + 1):
                 # Modify adjacency matrix
                 modified_adj = self.get_modified_adj(ori_adj, self.reshape_m(nnodes, adj_changes))
@@ -311,11 +313,11 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             s = edge_prop.cpu().detach().numpy()
             # s = (s + np.transpose(s))
             if self.sample == 'yes':
-                print('Using sampling for perturbation')
+                # print('Using sampling for perturbation')
                 binary = np.random.binomial(1, s)
                 mask = np.random.binomial(1, 0.7, s.shape)
                 sampled = np.multiply(binary, mask)
             else:
-                print('Not using sampling for perturbation')
+                # print('Not using sampling for perturbation')
                 sampled = np.random.binomial(1, s)
             return torch.FloatTensor(sampled).to(self.device)
