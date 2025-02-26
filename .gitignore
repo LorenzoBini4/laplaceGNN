@@ -128,8 +128,8 @@ celerybeat.pid
 # Cython debug symbols
 cython_debug/
 
-delme/*
-delme*
+delme/
+delme
 
 laplacian_dataset/
 dataset/
