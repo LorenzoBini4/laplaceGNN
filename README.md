@@ -1,5 +1,20 @@
 # LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
 
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+    - [Training](#training)
+    - [Evaluation](#evaluation)
+- [Configuration](#configuration)
+- [Examples](#examples)
+    - [Example 1: Node Classification](#example-1-node-classification)
+    - [Example 2: Graph Classification](#example-2-graph-classification)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 ## Introduction
 
 LaplaceGNN is a scalable graph learning framework that leverages spectral bootstrapping and adversarial training to improve the performance of graph neural networks (GNNs). This repository contains the implementation of LaplaceGNN, along with scripts for training and evaluation.
