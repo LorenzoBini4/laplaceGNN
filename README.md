@@ -1,5 +1,4 @@
-# LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
-
+# Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations
 ## Table of Contents
 
 - [Introduction](#introduction)
@@ -17,13 +16,13 @@
 - [Contact](#contact)
 ## Introduction
 
-LaplaceGNN is a scalable graph learning framework that leverages spectral bootstrapping and adversarial training to improve the performance of graph neural networks (GNNs). This repository contains the implementation of LaplaceGNN, along with scripts for training and evaluation.
+We present LaplaceGNN, a novel self-supervised graph learning framework that bypasses the need for negative sampling by leveraging spectral bootstrapping techniques. Our method integrates Laplacian-based signals into the learning process, allowing the model to effectively capture rich structural representations without relying on contrastive objectives or handcrafted augmentations. By focusing on positive alignment, LaplaceGNN achieves linear scaling while offering a simpler, more efficient, self-supervised alternative for graph neural networks, applicable across diverse domains. Our contributions are twofold: we precompute spectral augmentations through max-min centrality-guided optimization, enabling rich structural supervision without relying on handcrafted augmentations, then we integrate an adversarial bootstrapped training scheme that further strengthens feature learning and robustness. Our extensive experiments on different benchmark datasets show that LaplaceGNN achieves superior performance compared to state-of-the-art self-supervised graph methods, offering a promising direction for efficiently learning expressive graph representations. This repository contains the implementation of LaplaceGNN, along with scripts for training and evaluation.
 
 ## Features 
 
 - **Spectral Bootstrapping**: Enhances the learning process by incorporating spectral information from the graph.
 - **Adversarial Training**: Improves model robustness by training with adversarial examples.
-- **Scalability**: Designed to handle large-scale graphs efficiently.
+- **Scalability**: Designed to lineary handle large-scale graphs efficiently.
 
 ## Installation
 
