@@ -1,4 +1,4 @@
-# LaplaceGNN: Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations
+# Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations
 
 This repository contains the official PyTorch implementation for the paper: **"Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations"** currenly under double-blind review as a conference paper.
 
