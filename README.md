@@ -1,6 +1,6 @@
 # Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations
 
-This repository contains the official PyTorch implementation for the paper: [**"LapDDPM: A Conditional Graph Diffusion Model for scRNA-seq Generation with Spectral Adversarial Perturbations"**](https://arxiv.org/abs/2506.20362)currenly under double-blind review as a conference paper.
+This repository contains the official PyTorch implementation for the paper: [**"Self-Supervised Graph Learning via Spectral Bootstrapping and Laplacian-Based Augmentations"**](https://arxiv.org/abs/2506.20362)currenly under double-blind review as a conference paper.
 
 ## Abstract
 
