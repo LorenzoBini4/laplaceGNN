@@ -30,8 +30,8 @@ The repository is organized to support experiments for node-level and graph-leve
 ├── ssl_adv_node/               # Scripts and modules for node-level SSL tasks
 │   └── run_adv_node.py
 ├── ssl_adv_graph/              # Scripts and modules for graph-level SSL tasks
-|    ├── ogb/
-|    └── tudataset/
+|   ├── ogb/
+|   └── tudataset/
 ├── main_node.sh                # Example script to run node classification
 ├── main_ogb.sh                 # Example script to run OGB graph classification
 ├── main_tudata.sh              # Example script to run TU-Dataset graph classification
