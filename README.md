@@ -24,17 +24,20 @@ The repository is organized to support experiments for node-level and graph-leve
 ```
 .
 ├── config_node/                # Configuration files for node classification tasks
-├── data/                       # Directory for raw and processed datasets
-├── laplaceGNN/                 # Core Python package for the LaplaceGNN model
-├── laplacian_augmentations/    # Core Python package for the Laplace augmentations
-├── ssl_adv_node/               # Scripts and modules for node-level SSL tasks
-│   └── run_adv_node.py
-├── ssl_adv_graph/              # Scripts and modules for graph-level SSL tasks
-|   ├── ogb/
-|   └── tudataset/
+├── laplaceGNN/                 # Core package: models, data loaders, protocol, objectives, run logging
+├── laplacian_augmentations/    # Spectral view generation (sparse and original dense), samplers, structural adversary
+├── ssl_adv_node/               # Node-level SSL: run_adv_node.py (our pipeline), run_baselines.py (CCA-SSG, GraphMAE, PolyGCL)
+├── ssl_adv_graph/              # Graph-level SSL (ogb/ and tudataset/)
+├── scripts/                    # Tuning, retraining, ablation, dose-response, attacks, scaling, paper tables and figures
+├── experiments/                # Launchers of the controlled study, with a README
+├── results/                    # Aggregated results (CSV) behind every table and figure of the paper
+├── tests/                      # Unit tests (eigenvalue gradients, protocol, view samplers); run as plain scripts
+├── paper/                      # LaTeX sources of the controlled study (build with `make`)
+├── METHOD_CHANGES.md           # Every change with respect to the original method, with all result tables
 ├── main_node.sh                # Example script to run node classification
 ├── main_ogb.sh                 # Example script to run OGB graph classification
 ├── main_tudata.sh              # Example script to run TU-Dataset graph classification
+├── requirements.txt            # Pinned versions used for the results
 └── README.md
 ```
 
@@ -68,10 +71,9 @@ The repository is organized to support experiments for node-level and graph-leve
     # For CUDA 11.8
     pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2 --index-url [https://download.pytorch.org/whl/cu118](https://download.pytorch.org/whl/cu118)
     ```
-    Then, install PyTorch Geometric and other required packages:
+    Then install the remaining packages with the pinned versions used for all results (PyG extensions and DGL need the wheel indices listed at the top of the file):
     ```bash
-    pip install torch_geometric
-    pip install ogb pyyaml easydict
+    pip install -r requirements.txt
     ```
 
 ---
@@ -114,6 +116,30 @@ Experiments on TU Datasets (e.g., `PROTEINS`, `MUTAG`) are run using the `main_t
     bash main_tudata.sh
     ```
     This script will execute the `ssl_adv_graph.tudataset.run_adv_graph` module.
+
+---
+
+## Controlled study (reworked pipeline)
+
+The repository also contains a reworked pipeline used for a controlled study of what drives graph self-supervised learning: encoders, spectral structural views and adversarial training, compared with BGRL, CCA-SSG, GraphMAE and PolyGCL under one protocol (fixed splits, linear probe, validation-only selection, equal random-search budget, fresh seeds for reported numbers). `METHOD_CHANGES.md` documents every change with respect to the original method and contains all result tables; `paper/` holds the manuscript.
+
+```bash
+# Equal-budget random search for one method on one dataset (test accuracy is logged but never used for selection)
+python scripts/tune_node.py --dataset cora --method laplacegnn_full --trials 60 --workers 4
+# Retrain the selected configuration with fresh seeds
+python scripts/run_best.py --dataset cora --methods bgrl,ccassg,laplacegnn_full --seeds 3
+# Paired encoder comparison, ablation, dose-response, attacks, scaling
+python scripts/paired_encoder.py
+python scripts/ablate.py --dataset cora
+python scripts/dose_response.py --dataset cora --method laplacegnn_full --seeds 3
+python scripts/make_attacks.py && python scripts/scaling_sparse.py
+# Tables and figures of the paper, then the PDF
+python scripts/paper_tables.py && python scripts/paper_figures.py && make -C paper
+```
+
+The launchers that produced the reported runs are in `experiments/`, and the unit tests run with `python tests/test_spectral.py` and `python tests/test_phase0.py`. Datasets are downloaded to `data/` on first use. Runs write their full configuration, git state and per-split scores to `runs/` and `logs/`, both ignored by git; `results/` holds the aggregated CSV files.
+
+**PolyGCL baseline.** The PolyGCL baseline runs the authors' code from [ChenJY-Count/PolyGCL](https://github.com/ChenJY-Count/PolyGCL), which has no license and is therefore not redistributed here. To reproduce it, create `third_party/__init__.py` (empty) and `third_party/polygcl/` (both are git-ignored), copy `model.py` and `ChebnetII_pro.py` from the `HeterophilousGraph/` directory of that repository, copy the `cheby` function of its `utils.py` to `third_party/polygcl/cheby.py`, write `from .model import Model` in `third_party/polygcl/__init__.py`, and change the imports in the copied files to relative ones. Our copy also changes the discriminator in `model.py` to the bilinear form $(hW)\cdot c + b$.
 
 ---
 

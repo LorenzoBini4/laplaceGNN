@@ -134,3 +134,19 @@ delme
 laplacian_dataset/
 dataset/
 data/
+
+runs/
+logs/
+PROGRESS.md
+third_party/
+
+.vscode/
+reviews_from_log.md
+tmlr_submission/
+jobs/
+METHOD*
+results/
+
+# Paper build artifacts
+paper/
+.DS_Store

@@ -17,6 +17,12 @@ from laplaceGNN4Graph import LaplaceGNN_Graph
 from torch.optim import AdamW
 from torch.nn.functional import cosine_similarity
 import gc
+import time
+import torch_geometric.transforms as T
+from torch_geometric.utils import degree
+from laplaceGNN import protocol
+from laplaceGNN.runlog import RunLogger, default_logdir
+from laplacian_augmentations.view_sampler import expected_flips_per_graph, warn_if_noop
 
 class GConv(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers):
@@ -90,42 +96,30 @@ class GCNEncoder(nn.Module):
         self.gconv2.reset_parameters()
 
 ###################### LaplaceGNN Training and Testing ######################
-def test(encoder_model, dataloader, device):
+@torch.no_grad()
+def embed_graphs(encoder_model, dataset, device, batch_size=256):
     encoder_model.eval()
-    x = []
-    y = []
-    for data in dataloader:
+    xs, ys = [], []
+    for data in DataLoader(dataset, batch_size=batch_size, shuffle=False):
         data = data.to(device)
         if data.x is None:
-            num_nodes = data.batch.size(0)
-            data.x = torch.ones((num_nodes, 1), dtype=torch.float32, device=data.batch.device)
-        # Obtain graph embeddings from the online encoder
+            data.x = torch.ones((data.batch.size(0), 1), dtype=torch.float32, device=device)
         _, g = encoder_model.online_encoder(data.x, data.edge_index, data.batch)
-        x.append(g)
-        y.append(data.y)
-    x = torch.cat(x, dim=0)
-    y = torch.cat(y, dim=0)
+        xs.append(g.cpu())
+        ys.append(data.y.cpu())
+    return torch.cat(xs).numpy(), torch.cat(ys).numpy()
 
-    split = get_split(num_samples=x.size()[0], train_ratio=0.8, test_ratio=0.1)
-    best_result = {
-        'accuracy': 0,
-        'micro_f1': 0,
-        'macro_f1': 0,
-        'accuracy_val': 0,
-        'micro_f1_val': 0,
-        'macro_f1_val': 0
-    }
-    for decay in [0.0, 0.001, 0.01, 0.1, 0.5, 1.0, 5.0]:
-        result = LaplacianLogRegr(weight_decay=decay)(x, y, split)
-        if result['accuracy_val'] > best_result['accuracy_val']:
-            best_result = result
-    return best_result
+
+def test(encoder_model, dataset, device, seed, n_folds, backend):
+    x, y = embed_graphs(encoder_model, dataset, device)
+    return protocol.tu_kfold_eval(x, y, seed=seed, n_folds=n_folds, backend=backend)
+
 
 def arg_parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=77, help='Random seed')
     parser.add_argument('--device', type=int, default=0, help='cuda')
-    parser.add_argument('--dataset', type=str, default='PROTEINS', choices=['MUTAG', 'PROTEINS', 'NCI1', 'IMDB-BINARY', 'IMDB-MULTI'])
+    parser.add_argument('--dataset', type=str, default='PROTEINS', choices=['MUTAG', 'PROTEINS', 'NCI1', 'IMDB-BINARY', 'IMDB-MULTI', 'COLLAB'])
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training.')
     parser.add_argument('--gnn1_dim', type=int, default=64, help='The hidden dimension of the first GNN layer.')
     parser.add_argument('--gnn1_num_layers', type=int, default=2, help='The number of layers of the first GNN.')
@@ -150,6 +144,20 @@ def arg_parse():
     parser.add_argument('--delta', type=float, default=8e-2, help='perturbation magnitude')
     parser.add_argument('--m', type=int, default=2, help='number of inner maximization steps')
     parser.add_argument('--step_size', type=float, default=8e-2, help='step size for inner maximization')
+    parser.add_argument('--n_folds', type=int, default=10, help='folds of the stratified CV used for evaluation')
+    parser.add_argument('--probe_backend', type=str, default='auto', choices=['auto', 'sklearn', 'torch', 'liblinear-ovr'])
+    parser.add_argument('--eval_every', type=int, default=0, help='also run the CV every k epochs (logged only; the final epoch is reported)')
+    parser.add_argument('--logdir', type=str, default=None)
+    parser.add_argument('--spectral_backend', type=str, default='batched', choices=['batched', 'legacy'])
+    parser.add_argument('--view_mode', type=str, default='spectral', choices=['spectral', 'random'],
+                        help='random: independent edge dropping with p = sv_budget_ratio in both views (same budget)')
+    parser.add_argument('--view_pair', type=str, default='max_min', choices=['max_min', 'max_max', 'min_min'])
+    parser.add_argument('--sv_budget_ratio', type=float, default=0.2)
+    parser.add_argument('--sv_iters', type=int, default=20)
+    parser.add_argument('--sv_gamma', type=float, default=1.0)
+    parser.add_argument('--sv_protect', type=str, default='hubs', choices=['hubs', 'periphery', 'uniform'])
+    parser.add_argument('--sv_init', type=str, default='centrality', choices=['centrality', 'uniform'])
+    parser.add_argument('--legacy_batched_views', action='store_true', help='restore the original (mis-mapped) batched view sampling')
     return parser.parse_args()
 
 def main():
@@ -162,6 +170,13 @@ def main():
     # Load dataset
     path = osp.join(osp.expanduser('./data/'), 'datasets')
     dataset = TUDataset(path, name=args.dataset)
+    if dataset.num_features == 0:
+        max_degree = max(int(degree(d.edge_index[0], d.num_nodes).max()) if d.edge_index.numel() else 0 for d in dataset)
+        dataset = TUDataset(path, name=args.dataset, transform=T.OneHotDegree(max_degree))
+        print(f'{args.dataset} has no node features: using one-hot degree features (max degree {max_degree})')
+    logdir = os.path.join(args.logdir, f'seed{args.seed}-{time.strftime("%Y%m%d-%H%M%S")}') if args.logdir \
+        else default_logdir('tu', args.dataset, args.seed)
+    runlog = RunLogger(logdir, vars(args), pipeline='ssl_adv_graph/tudataset/run_adv_graph.py')
 
     ######################## AUGMENTATION ########################
     centrality_types = ['degree', 'pagerank', 'eigenvector']
@@ -198,22 +213,40 @@ def main():
     )
     
     # Precompute laplacian perturbation or load them
-    laplacian_path = osp.join(path, args.dataset+'/laplacian_max{}_min{}_threshold{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold))
-    if os.path.exists(laplacian_path):  # Load saved probability matrix
+    if args.spectral_backend == 'batched':
+        laplacian_path = osp.join(path, args.dataset + '/sv_b{}_g{}_{}_{}_it{}_{}.pt'.format(
+            args.sv_budget_ratio, args.sv_gamma, args.sv_protect, args.sv_init, args.sv_iters, args.view_pair))
+    else:
+        laplacian_path = osp.join(path, args.dataset+'/laplacian_max{}_min{}_threshold{}_iter{}.pt'.format(args.lapl_max_lr, args.lapl_min_lr, args.threshold, args.lapl_epoch))
+    if os.path.exists(laplacian_path):
         loaded_laplacian_path = torch.load(laplacian_path)
         print('Laplacian perturbations have beeen loaded!')
-    else:  
+    elif args.spectral_backend == 'batched':
+        from laplacian_augmentations.spectral_views import BatchedSpectralViewGenerator
+        loaded_laplacian_path = [dataset[i] for i in range(len(dataset))]
+        gen = BatchedSpectralViewGenerator(budget_ratio=args.sv_budget_ratio, iters=args.sv_iters, gamma=args.sv_gamma,
+                                           protect=args.sv_protect, init=args.sv_init, seed=args.seed, device=device)
+        signs = {'max_min': (1, -1), 'max_max': (1, 1), 'min_min': (-1, -1)}[args.view_pair]
+        for key, sign in zip(('max', 'min'), signs):
+            probs, st = gen.generate(loaded_laplacian_path, sign)
+            for d, pr in zip(loaded_laplacian_path, probs):
+                d[key] = pr
+            print(key, st)
+        torch.save(loaded_laplacian_path, laplacian_path)
+    else:
         print('Laplacian perturbations under computation')
         assert dataset.len() > 1  # it's a graph classification
         loaded_laplacian_path = []
         for i in tqdm(range(dataset.len())):
-            data = dataset.get(i)        
+            data = dataset[i]
             L1_view.calc_prob(data, silence=True) # now max-laplacian has been encoded as data['max']=ptb_prob1
             L2_view.calc_prob(data, silence=True) # now min-laplacian has been encoded as data['min']=ptb_prob2
             loaded_laplacian_path.append(data)
         torch.save(loaded_laplacian_path, laplacian_path)
     
-    # LaplaceGNN main loop
+    flips = expected_flips_per_graph(loaded_laplacian_path)
+    runlog.update_config(expected_flips_per_graph=flips, spectral_noop=warn_if_noop(flips), laplacian_cache=laplacian_path)
+
     dataloader = DataLoader(loaded_laplacian_path, batch_size=args.batch_size, shuffle=True)
     gconv1 = GConv(input_dim=dataset.num_features, hidden_dim=args.gnn1_dim, num_layers=args.gnn1_num_layers).to(device)
     gconv2 = GConv(input_dim=args.gnn1_dim, hidden_dim=args.gnn2_dim, num_layers=args.gnn2_num_layers).to(device)
@@ -221,7 +254,9 @@ def main():
     mlp1 = FC(input_dim=args.gnn2_dim, output_dim=args.mlp_dim)
     mlp2 = FC(input_dim=args.mlp_dim, output_dim=args.gnn2_dim)
     predictor = nn.Sequential(mlp1, mlp2).to(device)
-    encoder_model = LaplaceGNN_Graph(gcn_encoder, predictor, augmentation=(L1_view,L2_view)).to(device)
+    encoder_model = LaplaceGNN_Graph(gcn_encoder, predictor, augmentation=(L1_view,L2_view),
+                                     legacy_batched_views=args.legacy_batched_views, view_mode=args.view_mode,
+                                     drop_edge_p=args.sv_budget_ratio).to(device)
     lr_scheduler = CosineDecayScheduler(args.lr, args.lr_warmup_epochs, args.epoch)
     mm_scheduler = CosineDecayScheduler(1 - args.mm, 0, args.epoch)
     optimizer = AdamW(encoder_model.trainable_parameters(), lr=args.lr, weight_decay=args.weight_decay) 
@@ -288,15 +323,25 @@ def main():
                 print(f'Step: {step}, Loss: {loss.item()}') #, Learning Rate: {lr}, Momentum: {mm}')
             return step_loss.item()
     
+    eval_graphs = [dataset[i] for i in range(len(dataset))]
+    train_seconds = 0.0
     with tqdm(total=args.epoch, desc='(T)') as pbar:
         for epoch in range(1, args.epoch+1):
+            t0 = time.time()
             loss = train(epoch, dataloader)
+            train_seconds += time.time() - t0
+            record = {'epoch': epoch, 'loss': loss}
+            if args.eval_every and epoch % args.eval_every == 0 and epoch != args.epoch:
+                interim = test(encoder_model, eval_graphs, device, args.seed, args.n_folds, args.probe_backend)
+                record.update(cv_test_mean=interim['test_mean'], cv_test_std=interim['test_std'], note='logged only, not used for selection')
+            runlog.log(record)
             pbar.set_postfix({'loss': loss})
             pbar.update()
 
-    test_result = test(encoder_model, dataloader, device)
-    
-    print(f'Test accuracy={test_result["accuracy"]:.4f}')
+    result = test(encoder_model, eval_graphs, device, args.seed, args.n_folds, args.probe_backend)
+    print(f'{args.n_folds}-fold CV accuracy = {result["test_mean"]:.4f} +- {result["test_std"]:.4f}')
+    runlog.finish(dict(result, dataset=args.dataset, seed=args.seed, metric='accuracy', epochs=args.epoch,
+                       selection='none: final pre-training epoch is reported', train_seconds=train_seconds))
 
 if __name__ == '__main__':
     main()

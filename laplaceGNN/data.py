@@ -24,11 +24,12 @@ def get_dataset(root, name, transform=NormalizeFeatures()):
 
     return dataset
 
-def get_wiki_cs(root, transform=NormalizeFeatures()):
+def get_wiki_cs(root, transform=NormalizeFeatures(), standardize=True):
     dataset = datasets.WikiCS(root, transform=transform)
     data = dataset[0]
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
     data.edge_index = to_undirected(data.edge_index)
     
     train_mask = np.array(data.train_mask)
@@ -37,27 +38,30 @@ def get_wiki_cs(root, transform=NormalizeFeatures()):
     
     return [data], train_mask, val_mask, test_mask
 
-def get_cora(root, transform=NormalizeFeatures()):
+def get_cora(root, transform=NormalizeFeatures(), standardize=True):
     dataset = datasets.Planetoid(root, name='Cora', transform=transform)
     data = dataset[0]
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
     data.edge_index = to_undirected(data.edge_index)
     return [data], np.array(data.train_mask), np.array(data.val_mask), np.array(data.test_mask)
 
-def get_citeseer(root, transform=NormalizeFeatures()):
+def get_citeseer(root, transform=NormalizeFeatures(), standardize=True):
     dataset = datasets.Planetoid(root, name='CiteSeer', transform=transform)
     data = dataset[0]
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
     data.edge_index = to_undirected(data.edge_index)
     return [data], np.array(data.train_mask), np.array(data.val_mask), np.array(data.test_mask)
 
-def get_pubmed(root, transform=NormalizeFeatures()):
+def get_pubmed(root, transform=NormalizeFeatures(), standardize=True):
     dataset = datasets.Planetoid(root, name='PubMed', transform=transform)
     data = dataset[0]
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
     data.edge_index = to_undirected(data.edge_index)
     return [data], np.array(data.train_mask), np.array(data.val_mask), np.array(data.test_mask)
 
@@ -68,7 +72,7 @@ Training set: 54%
 Validation set: 18%
 Test set: 28%
 '''
-def get_ogbn_arxiv(root):
+def get_ogbn_arxiv(root, standardize=True):
     dataset = NodePropPredDataset(name='ogbn-arxiv', root=root)
     split_idx = dataset.get_idx_split()
     
@@ -82,16 +86,16 @@ def get_ogbn_arxiv(root):
         y=torch.tensor(labels).squeeze()  # Labels
     )
 
-    # Normalize node features
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
 
     # Convert the graph to an undirected graph 
     data.edge_index = pyg_utils.to_undirected(data.edge_index)
 
     return [data], split_idx['train'], split_idx['valid'], split_idx['test']
 
-def get_ogbn_papers100M(root):
+def get_ogbn_papers100M(root, standardize=True):
     dataset = NodePropPredDataset(name='ogbn-papers100M', root=root)
     split_idx = dataset.get_idx_split()
     
@@ -105,9 +109,9 @@ def get_ogbn_papers100M(root):
         y=torch.tensor(labels).squeeze()  # Labels
     )
 
-    # Normalize node features
-    std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
-    data.x = (data.x - mean) / std
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
 
     # Convert the graph to an undirected graph
     data.edge_index = pyg_utils.to_undirected(data.edge_index)
@@ -125,3 +129,13 @@ class ConcatDataset(InMemoryDataset):
         for dataset in datasets:
             self.__data_list__.extend(list(dataset))
         self.data, self.slices = self.collate(self.__data_list__)
+
+
+def get_heterophilous(root, name, standardize=True):
+    dataset = datasets.HeterophilousGraphDataset(root, name=name)
+    data = dataset[0]
+    data.edge_index = to_undirected(data.edge_index)
+    if standardize:
+        std, mean = torch.std_mean(data.x, dim=0, unbiased=False)
+        data.x = (data.x - mean) / std.clamp_min(1e-12)
+    return [data], data.train_mask.numpy(), data.val_mask.numpy(), data.test_mask.numpy()

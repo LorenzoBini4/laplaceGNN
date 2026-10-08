@@ -50,13 +50,17 @@ class GCN(nn.Module):
 
 ########################### No Laplace-module only Adversarial Training #######################################
 class Encoder_Adversarial_GCN(nn.Module):
-    def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False):
+    def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=True, weight_standardization=False, forward_mode='legacy'):
         super().__init__()
 
         assert batchnorm != layernorm
         assert len(layer_sizes) >= 2
+        assert forward_mode in ('legacy', 'full')
         self.input_size, self.representation_size = layer_sizes[0], layer_sizes[-1]
         self.weight_standardization = weight_standardization
+        # 'legacy' applies only model[0] and model[3]: no norm/PReLU, no third layer (a linear 2-layer GCN)
+        self.forward_mode = forward_mode
+        self.num_layers = len(layer_sizes) - 1
 
         layers = []
         self.gcn_layers = []  # store references to GCNConv layers for easy access
@@ -86,6 +90,18 @@ class Encoder_Adversarial_GCN(nn.Module):
             x = data.x  
         
         edge_index = data.get('edge_index') if isinstance(data, dict) else data.edge_index
+
+        edge_weight = None if isinstance(data, dict) else getattr(data, 'edge_weight', None)
+        if self.forward_mode == 'full':
+            for l in range(self.num_layers):
+                conv, norm, act = self.model[3 * l], self.model[3 * l + 1], self.model[3 * l + 2]
+                x = conv(x, edge_index, edge_weight)
+                if l == 0 and perturb_first is not None:
+                    x = x + perturb_first
+                x = act(norm(x))
+            if perturb_last is not None:
+                x = x + perturb_last
+            return x
 
         # apply perturbations to the first hidden layer
         if perturb_first is not None:
@@ -515,3 +531,103 @@ class Encoder_LaplaceGNN_ZINCSAGE(nn.Module):
             m.weight.data.fill_(0.25)
         for m in self.batch_norms:
             m.reset_parameters()
+
+
+class DualFrequencyConv(nn.Module):
+    """Low-pass GCN channel plus a gated high-pass channel (x - P x), P the GCN propagation matrix."""
+
+    def __init__(self, in_dim, out_dim, gate_init=0.0):
+        super().__init__()
+        self.low = GCNConv(in_dim, out_dim)
+        self.high = nn.Linear(in_dim, out_dim)
+        self.gate_init = gate_init
+        self.gate = nn.Parameter(torch.full((out_dim,), float(gate_init)))
+        self.out_channels = out_dim
+
+    def forward(self, x, edge_index, edge_weight=None):
+        from torch_geometric.nn.conv.gcn_conv import gcn_norm
+        from torch_scatter import scatter_add
+        ei, w = gcn_norm(edge_index, edge_weight, num_nodes=x.shape[0], add_self_loops=True)
+        px = scatter_add(w.unsqueeze(-1) * x[ei[0]], ei[1], dim=0, dim_size=x.shape[0])
+        return self.low(x, edge_index, edge_weight) + torch.sigmoid(self.gate) * self.high(x - px)
+
+    def reset_parameters(self):
+        self.low.reset_parameters()
+        self.high.reset_parameters()
+        nn.init.constant_(self.gate, float(self.gate_init))
+
+
+class Encoder_DualFrequency(Encoder_Adversarial_GCN):
+    """Same interface and forward as the 'full' adversarial GCN encoder, with DualFrequencyConv layers."""
+
+    def __init__(self, layer_sizes, batchnorm=True, batchnorm_mm=0.99, layernorm=False, weight_standardization=False,
+                 gate_init=0.0):
+        super().__init__(layer_sizes, batchnorm=batchnorm, batchnorm_mm=batchnorm_mm, layernorm=layernorm,
+                         weight_standardization=False, forward_mode='full')
+        layers = []
+        for in_dim, out_dim in zip(layer_sizes[:-1], layer_sizes[1:]):
+            layers.append((DualFrequencyConv(in_dim, out_dim, gate_init), 'x, edge_index -> x'))
+            layers.append(BatchNorm(out_dim, momentum=batchnorm_mm) if batchnorm else LayerNorm(out_dim))
+            layers.append(nn.PReLU())
+        self.model = Sequential('x, edge_index', layers)
+
+    def reset_parameters(self):
+        for m in self.model.modules():
+            if m is not self.model and hasattr(m, 'reset_parameters'):
+                m.reset_parameters()
+
+
+class GraphFreeLinear(nn.Module):
+    """Linear layer with the conv call signature, so an encoder can ignore the graph."""
+
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.lin = nn.Linear(in_dim, out_dim)
+        self.out_channels = out_dim
+
+    def forward(self, x, edge_index, edge_weight=None):
+        return self.lin(x)
+
+    def reset_parameters(self):
+        self.lin.reset_parameters()
+
+
+class Encoder_MLP(Encoder_DualFrequency):
+    """Feature-only control: the full-mode encoder with every graph convolution replaced by a linear layer."""
+
+    def __init__(self, layer_sizes, batchnorm=True, batchnorm_mm=0.99, layernorm=False, weight_standardization=False):
+        super().__init__(layer_sizes, batchnorm=batchnorm, batchnorm_mm=batchnorm_mm, layernorm=layernorm)
+        layers = []
+        for in_dim, out_dim in zip(layer_sizes[:-1], layer_sizes[1:]):
+            layers.append((GraphFreeLinear(in_dim, out_dim), 'x, edge_index -> x'))
+            layers.append(BatchNorm(out_dim, momentum=batchnorm_mm) if batchnorm else LayerNorm(out_dim))
+            layers.append(nn.PReLU())
+        self.model = Sequential('x, edge_index', layers)
+
+
+class SAGELayer(nn.Module):
+    """GraphSAGE mean aggregator: separate weights for the node itself and the mean of its neighbours."""
+
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.conv = SAGEConv(in_dim, out_dim, aggr='mean', root_weight=True)
+        self.out_channels = out_dim
+
+    def forward(self, x, edge_index, edge_weight=None):
+        return self.conv(x, edge_index)
+
+    def reset_parameters(self):
+        self.conv.reset_parameters()
+
+
+class Encoder_SAGE(Encoder_DualFrequency):
+    """Ego/neighbour-separation control: the full-mode encoder with GraphSAGE layers."""
+
+    def __init__(self, layer_sizes, batchnorm=True, batchnorm_mm=0.99, layernorm=False, weight_standardization=False):
+        super().__init__(layer_sizes, batchnorm=batchnorm, batchnorm_mm=batchnorm_mm, layernorm=layernorm)
+        layers = []
+        for in_dim, out_dim in zip(layer_sizes[:-1], layer_sizes[1:]):
+            layers.append((SAGELayer(in_dim, out_dim), 'x, edge_index -> x'))
+            layers.append(BatchNorm(out_dim, momentum=batchnorm_mm) if batchnorm else LayerNorm(out_dim))
+            layers.append(nn.PReLU())
+        self.model = Sequential('x, edge_index', layers)

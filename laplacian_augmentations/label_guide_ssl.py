@@ -1,6 +1,10 @@
 ####### If we want to create the two views only using different centrality measures and detach the Laplacian-Max-Min Spectral Augmentations Module.
 ####### SAME NODES USED DURING LOGISTIC REGRESSION EVALUATION, AS STANDARD PROTOCOL
 
+import os
+if os.environ.get('LAPLACEGNN_ALLOW_LABEL_GUIDED') != '1':
+    raise ImportError('label_guide_ssl adds edges between nodes sharing a ground-truth label (label leakage); '
+                      'set LAPLACEGNN_ALLOW_LABEL_GUIDED=1 to import it anyway')
 import torch
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx

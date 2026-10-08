@@ -1,7 +1,16 @@
+mkdir -p logs
+SEEDS=${SEEDS:-"0 1 2 3 4"}
 # #### JOB ARRAY ###
 ############### GRAPH CLASSIFICATION ###############
 dataset=PROTEINS
-python -u -m ssl_adv_graph.tudataset.run_adv_graph --dataset ${dataset} --lr 1e-5 --epoch 500 --gnn1_num_layers 2 --gnn1_dim 512 --gnn2_num_layers 2 --gnn2_dim 512 --mlp_dim 512 > run_${dataset}.out 2> run_${dataset}.err
+# dataset=MUTAG
+# dataset=NCI1
+# dataset=IMDB-BINARY
+# dataset=IMDB-MULTI
+# dataset=COLLAB
+for seed in $SEEDS; do
+    python -u -m ssl_adv_graph.tudataset.run_adv_graph --dataset ${dataset} --seed ${seed} --lr 1e-5 --epoch 500 --gnn1_num_layers 2 --gnn1_dim 512 --gnn2_num_layers 2 --gnn2_dim 512 --mlp_dim 512 > logs/run_${dataset}-s${seed}.out 2> logs/run_${dataset}-s${seed}.err
+done
+python scripts/aggregate.py
 ############### OTHER TYPE OF NODE CLASSIFICATION ###############
-# dataset=CiteSeer
-# python -u -m ssl_adv_graph.tudataset.run_adv_node --epoch 500 --lapl_epoch 40 --lr 1e-3 --weight_decay 1e-5 --delta 1e-3 --step_size 1e-3 --m 3 --graph_encoder_layer 512 512 --predictor_hidden_size 512 --dataset ${dataset} > run_${dataset}.o 2> run_${dataset}.e
+# Planetoid datasets now run through the node pipeline: see config_node/cora.cfg and main_node.sh

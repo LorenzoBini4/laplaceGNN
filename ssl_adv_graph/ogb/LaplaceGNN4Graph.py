@@ -53,14 +53,16 @@ def singleton(cache_key):
 class LaplaceGNN_Graph(nn.Module):
     r""" LaplaceGNN: LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
     """
-    def __init__(self, net, emb_dim=512, projection_hidden_size=512, projection_size=512, prediction_size = 512, num_tasks = 512, moving_average_decay = 0.99):
+    def __init__(self, net, emb_dim=512, projection_hidden_size=512, projection_size=512, prediction_size = 512, num_tasks = 512, moving_average_decay = 0.99, legacy_view_swap=True):
         super().__init__()
         self.projection_hidden_size = projection_hidden_size
         self.online_encoder = net
         self.target_encoder = None
         self.target_ema_updater = EMA(moving_average_decay)
         self.online_projector = MLP(emb_dim, projection_hidden_size, projection_size)
-        self.predictor = MLP(projection_size, projection_hidden_size, prediction_size)  
+        self.predictor = MLP(projection_size, projection_hidden_size, prediction_size)
+        # legacy: inputs swapped on every call, so online and target alternately see the same view
+        self.legacy_view_swap = legacy_view_swap  
 
     @singleton('target_encoder')
     def _get_target_encoder(self):
@@ -82,6 +84,8 @@ class LaplaceGNN_Graph(nn.Module):
 
     def forward(self, batch_1, batch_2, perturb=None):
         if not hasattr(self, 'use_batch_1'):
+            self.use_batch_1 = True
+        if not self.legacy_view_swap:
             self.use_batch_1 = True
         if self.use_batch_1:
             online_proj_one = self.online_encoder(batch_1, perturb)

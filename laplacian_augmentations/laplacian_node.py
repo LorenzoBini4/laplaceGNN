@@ -65,7 +65,8 @@ class Compose(Augmentation):
         return g
     
 class LaplaceGNN_Augmentation_Node(Augmentation):
-    def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, threshold=0.5, precomputed_centrality=None, sample='no'):
+    def __init__(self, ratio, lr, iteration, dis_type, device, centrality_types, centrality_weights, threshold=0.5, precomputed_centrality=None, sample='no',
+                 centrality_norm='sum', spectral_fast=True, spectral_k=10, store='sparse_full', min_prob=0.0):
         """
         Centrality-guided Laplacian Spectral Augmentor.
         Args:
@@ -78,6 +79,9 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             centrality_weights (list): Weights for combining centrality measures.
             sample (str): Sampling mode ('yes' or 'no').
             threshold (float): Perturbation threshold for projection.
+            centrality_norm (str): 'sum' (original) or 'minmax'.
+            spectral_fast (bool), spectral_k (int): top-k singular values via svd_lowrank (original: True, 10).
+            store (str): 'sparse_full' (original SparseTensor) or 'compact' (lower-triangular pairs with prob > min_prob).
         """
         super(LaplaceGNN_Augmentation_Node, self).__init__()
         self.ratio = ratio
@@ -90,6 +94,12 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
         self.threshold = threshold
         self.precomputed_centrality = precomputed_centrality
         self.sample = sample
+        self.centrality_norm = centrality_norm
+        self.spectral_fast = spectral_fast
+        self.spectral_k = spectral_k
+        self.store = store
+        self.min_prob = min_prob
+        self.stats = {}
         
     def compute_centrality(self, adj):
         """
@@ -123,9 +133,11 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             self.centrality_weights[i] * centrality_scores[ctype]
             for i, ctype in enumerate(self.centrality_types)
         )
+        if self.centrality_norm == 'minmax':
+            return (combined_centrality - combined_centrality.min()) / (combined_centrality.max() - combined_centrality.min())
         return combined_centrality / combined_centrality.sum()  # Normalize
 
-    def calc_prob(self, data, fast=True, silence=False, precomputed_centrality=None):
+    def calc_prob(self, data, fast=None, silence=False, precomputed_centrality=None):
         """
         Precompute the perturbation probabilities with centrality-guided initialization using Power Iteration.
         Args:
@@ -153,6 +165,8 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
             eigenvalue = torch.dot(vec, torch.matmul(matrix, vec))
             return eigenvalue
 
+        if fast is None:
+            fast = self.spectral_fast
         x, edge_index = data.x, data.edge_index
         x = x.to(self.device)
         ori_adj = get_adj_tensor(edge_index.cpu()).to(self.device)
@@ -188,7 +202,7 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
         if fast:
             print('Using fast SVD for spectral analysis')
             # For large matrices, use truncated SVD
-            k = min(10, min(ori_adj_norm.shape) // 2)
+            k = min(self.spectral_k, min(ori_adj_norm.shape) // 2)
             U, S, V = torch.svd_lowrank(ori_adj_norm, q=k)
             ori_spectrum = S[:k]
         else:
@@ -202,6 +216,7 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
         n_perturbations = int(self.ratio * (ori_adj.sum() / 2))
 
         # Progress tracking
+        loss_trace = []
         with tqdm(total=self.iteration, desc='Centrality LaplaceGNN Augmentation', disable=silence) as pbar:
             for t in range(1, self.iteration + 1):
                 # Modify adjacency matrix
@@ -212,7 +227,7 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
                 if fast:
                     print('Using fast SVD for spectral analysis')
                     # Truncated SVD for modified adjacency
-                    k = min(10, min(adj_norm_noise.shape) // 2)
+                    k = min(self.spectral_k, min(adj_norm_noise.shape) // 2)
                     U_noise, S_noise, V_noise = torch.svd_lowrank(adj_norm_noise, q=k)
                     noise_spectrum = S_noise[:k]
                 else:
@@ -231,10 +246,23 @@ class LaplaceGNN_Augmentation_Node(Augmentation):
                 lr = self.lr / (t ** 0.5)
                 adj_changes.data.add_(lr * adj_grad)
                 self.projection(n_perturbations, adj_changes)
+                loss_trace.append(reg_loss.item())
                 pbar.set_postfix({'reg_loss': reg_loss.item(), 'budget': n_perturbations})
                 pbar.update()
 
-        data[self.dis_type] = SparseTensor.from_dense(self.reshape_m(nnodes, adj_changes))
+        prob = adj_changes.detach()
+        self.stats = {'dis_type': self.dis_type, 'budget': n_perturbations, 'expected_flips': float(prob.sum()),
+                      'num_pairs': int(prob.numel()), 'nonzero_pairs': int((prob > 0).sum()), 'loss_trace': loss_trace,
+                      'centrality_norm': self.centrality_norm, 'spectral_fast': bool(fast), 'spectral_k': self.spectral_k}
+        if self.store == 'compact':
+            keep = prob > self.min_prob
+            tril_indices = tril_indices.to(prob.device)
+            data[f'{self.dis_type}_row'] = tril_indices[0][keep].cpu()
+            data[f'{self.dis_type}_col'] = tril_indices[1][keep].cpu()
+            data[f'{self.dis_type}_prob'] = prob[keep].cpu()
+            self.stats.update({'stored_pairs': int(keep.sum()), 'dropped_mass': float(prob[~keep].sum()), 'min_prob': self.min_prob})
+        else:
+            data[self.dis_type] = SparseTensor.from_dense(self.reshape_m(nnodes, adj_changes))
         return data
 
     def augment(self, g: Graph, batch: torch.Tensor) -> Graph:

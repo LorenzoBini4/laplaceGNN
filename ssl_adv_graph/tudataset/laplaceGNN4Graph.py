@@ -3,12 +3,16 @@ import torch
 import torch_geometric
 import torch_geometric.nn as pyg_nn  
 from torch_geometric.data import Data
+from laplacian_augmentations.view_sampler import sampler_from_sparse
 
 class LaplaceGNN_Graph(torch.nn.Module):
     r""" LaplaceGNN: LaplaceGNN: Scalable Graph Learning through Spectral Bootstrapping and Adversarial Training
     """
-    def __init__(self, encoder, predictor, augmentation):
+    def __init__(self, encoder, predictor, augmentation, legacy_batched_views=True, view_mode='spectral', drop_edge_p=0.2):
         super().__init__()
+        self.view_mode, self.drop_edge_p = view_mode, drop_edge_p
+        # legacy: original batched augment, which mis-maps pairs of graphs larger than the batch's first graph
+        self.legacy_batched_views = legacy_batched_views
 
         # Encoders and augmentation
         self.online_encoder = encoder
@@ -70,9 +74,19 @@ class LaplaceGNN_Graph(torch.nn.Module):
         ptb_prob2 = data.min
 
         # Apply augmentations
-        L1_view, L2_view = self.augmentation
-        x1, edge_index1, _ = L1_view(x, edge_index, ptb_prob1, batch=data.batch)
-        x2, edge_index2, _ = L2_view(x, edge_index, ptb_prob2, batch=data.batch)
+        if self.view_mode == 'random':
+            from torch_geometric.utils import dropout_edge
+            x1 = x2 = x
+            edge_index1, _ = dropout_edge(edge_index, p=self.drop_edge_p, force_undirected=True)
+            edge_index2, _ = dropout_edge(edge_index, p=self.drop_edge_p, force_undirected=True)
+        elif self.legacy_batched_views:
+            L1_view, L2_view = self.augmentation
+            x1, edge_index1, _ = L1_view(x, edge_index, ptb_prob1, batch=data.batch)
+            x2, edge_index2, _ = L2_view(x, edge_index, ptb_prob2, batch=data.batch)
+        else:
+            x1 = x2 = x
+            edge_index1, _, _ = sampler_from_sparse(ptb_prob1, edge_index, data.num_nodes, x.device, batch=data.batch, ptr=data.ptr).sample()
+            edge_index2, _, _ = sampler_from_sparse(ptb_prob2, edge_index, data.num_nodes, x.device, batch=data.batch, ptr=data.ptr).sample()
 
         # Online encoder forward pass with perturbations
         online_y = self.online_encoder(x1, edge_index1, batch=data.batch, perturb_first=perturb_first, perturb_last=perturb_last)
